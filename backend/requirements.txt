@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+cryptography
+python-dotenv
+passlib[bcrypt]
+bcrypt
+pytest
+pytest-cov
+httpx
