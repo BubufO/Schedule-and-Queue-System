@@ -6,14 +6,12 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from 'expo-router/ui';
-import { SymbolView } from 'expo-symbols';
-import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
+import { Pressable, View, StyleSheet, useWindowDimensions } from 'react-native';
 
-import { ExternalLink } from './external-link';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
-import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 
 export default function AppTabs() {
   return (
@@ -24,8 +22,14 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             <TabButton>Home</TabButton>
           </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
+          <TabTrigger name="user" href="/user" asChild>
+            <TabButton>User</TabButton>
+          </TabTrigger>
+          <TabTrigger name="admin" href="/admin" asChild>
+            <TabButton>Admin</TabButton>
+          </TabTrigger>
+          <TabTrigger name="login" href="/login" asChild>
+            <TabButton>Login</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -33,12 +37,16 @@ export default function AppTabs() {
   );
 }
 
+// Below this width the tab bar tightens its spacing.
+const NarrowWidth = 520;
+
 export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+  const narrow = useWindowDimensions().width < NarrowWidth;
   return (
     <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
-        style={styles.tabButtonView}>
+        style={[styles.tabButtonView, narrow && styles.tabButtonViewNarrow]}>
         <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
           {children}
         </ThemedText>
@@ -48,28 +56,17 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 }
 
 export function CustomTabList(props: TabListProps) {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-
+  const narrow = useWindowDimensions().width < NarrowWidth;
   return (
-    <View {...props} style={styles.tabListContainer}>
-      <ThemedView type="backgroundElement" style={styles.innerContainer}>
-        <ThemedText type="smallBold" style={styles.brandText}>
-          Expo Starter
-        </ThemedText>
+    <View {...props} style={[styles.tabListContainer, narrow && styles.tabListContainerNarrow]}>
+      <ThemedView
+        type="backgroundElement"
+        style={[styles.innerContainer, narrow && styles.innerContainerNarrow]}>
+        <View style={styles.brand}>
+          <ThemedText type="smallBold">QueueSmart</ThemedText>
+        </View>
 
         {props.children}
-
-        <ExternalLink href="https://docs.expo.dev" asChild>
-          <Pressable style={styles.externalPressable}>
-            <ThemedText type="link">Docs</ThemedText>
-            <SymbolView
-              tintColor={colors.text}
-              name={{ ios: 'arrow.up.right.square', web: 'link' }}
-              size={12}
-            />
-          </Pressable>
-        </ExternalLink>
       </ThemedView>
     </View>
   );
@@ -86,7 +83,7 @@ const styles = StyleSheet.create({
   },
   innerContainer: {
     paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.five,
+    paddingHorizontal: Spacing.four,
     borderRadius: Spacing.five,
     flexDirection: 'row',
     alignItems: 'center',
@@ -94,7 +91,17 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     maxWidth: MaxContentWidth,
   },
-  brandText: {
+  tabListContainerNarrow: {
+    paddingHorizontal: Spacing.two,
+  },
+  innerContainerNarrow: {
+    paddingHorizontal: Spacing.three,
+    gap: Spacing.one,
+  },
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     marginRight: 'auto',
   },
   pressed: {
@@ -105,11 +112,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.three,
   },
-  externalPressable: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.one,
-    marginLeft: Spacing.three,
+  tabButtonViewNarrow: {
+    paddingHorizontal: 10,
   },
 });

@@ -1,98 +1,124 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// Home: entry point with links to every part of the application.
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
+import { useRouter, type Href } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
+
+import { Badge, Screen, SectionLabel } from '@/components/admin/ui';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+type Destination = {
+  href: Href;
+  title: string;
+  description: string;
+  comingSoon?: boolean;
+};
+
+const clientPages: Destination[] = [
+  {
+    href: '/login',
+    title: 'Login / Register',
+    description: 'Sign in or create an account.',
+    comingSoon: true,
+  },
+  {
+    href: '/user',
+    title: 'User Dashboard',
+    description: 'Join a queue and track your place in line.',
+    comingSoon: true,
+  },
+];
+
+const adminPages: Destination[] = [
+  {
+    href: '/admin',
+    title: 'Admin Dashboard',
+    description: 'All services, current queue lengths, and quick open/close actions.',
+  },
+  {
+    href: '/admin/services',
+    title: 'Service Management',
+    description: 'Create, edit, and delete services.',
+  },
+  {
+    href: '/admin/queue',
+    title: 'Queue Management',
+    description: 'Find a service, reorder or remove people, and serve the next person.',
+  },
+];
 
 export default function HomeScreen() {
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <Screen
+      title="Welcome to QueueSmart"
+      subtitle="Join queues, see your wait time, and manage services, all in one place.">
+      <SectionLabel>For clients</SectionLabel>
+      <View style={styles.grid}>
+        {clientPages.map((d) => (
+          <DestinationCard key={d.title} destination={d} />
+        ))}
+      </View>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
+      <SectionLabel>For administrators</SectionLabel>
+      <View style={styles.grid}>
+        {adminPages.map((d) => (
+          <DestinationCard key={d.title} destination={d} />
+        ))}
+      </View>
+    </Screen>
+  );
+}
+
+function DestinationCard({ destination }: { destination: Destination }) {
+  const router = useRouter();
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={() => router.navigate(destination.href)}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: theme.backgroundElement },
+        pressed && { opacity: 0.75 },
+      ]}>
+      <View style={styles.cardTop}>
+        <ThemedText type="smallBold" style={styles.cardTitle}>
+          {destination.title}
         </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        {destination.comingSoon ? <Badge label="Coming soon" /> : null}
+      </View>
+      <ThemedText type="small" themeColor="textSecondary">
+        {destination.description}
+      </ThemedText>
+      <ThemedText type="smallBold" style={{ color: theme.accent }}>
+        Open →
+      </ThemedText>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
+  grid: {
     flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
   },
-  heroSection: {
+  card: {
+    flexGrow: 1,
+    flexBasis: 220,
+    borderRadius: Spacing.three,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  cardTop: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  cardTitle: {
+    fontSize: 17,
   },
 });
