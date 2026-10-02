@@ -3,6 +3,7 @@ import { Screen, Card, SectionLabel } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { UserNav } from '@/components/user-nav';
 import { useUserQueue } from '@/lib/user-queue';
+import { generateMockNotifications } from '@/lib/mock-notifications';
 
 type RawNotification = any;
 
@@ -22,39 +23,25 @@ function timeAgo(input?: number | string): string {
 }
 
 function normalize(raw: RawNotification) {
-  // Output shape: { id?, icon, title, lines: string[], time?: string }
-  // Use simple, broadly supported glyphs: ● (U+25CF), ✓/✔ (U+2713/U+2714), ⚠ (U+26A0), ✉ (U+2709)
   if (!raw) return { id: String(Math.random()), icon: '✉', title: 'Notification', lines: [String(raw)], time: undefined };
-
   if (typeof raw === 'string') {
     const s = raw.trim();
     const lower = s.toLowerCase();
-
-    // Your turn approaching
     if (lower.includes('your turn') || lower.includes('approaching') || lower.includes('you are currently #')) {
       return { id: s, icon: '●', title: 'Your turn is approaching!', lines: [s], time: undefined };
     }
-
-    // Queue updated / position change
-    if (lower.includes('position changed') || lower.includes('position changed from') || (lower.includes('position') && lower.includes('changed'))) {
+    if (lower.includes('position changed') || (lower.includes('position') && lower.includes('changed'))) {
       return { id: s, icon: '●', title: 'Queue Updated', lines: [s], time: undefined };
     }
-
-    // Joined queue
-    if (lower.includes('joined') || lower.includes('you successfully joined') || lower.includes('queue joined')) {
+    if (lower.includes('joined') || lower.includes('you successfully joined')) {
       return { id: s, icon: '✔', title: 'Queue Joined', lines: [s], time: undefined };
     }
-
-    // Service update / unavailable / closed
-    if (lower.includes('unavailable') || lower.includes('temporarily') || lower.includes('closed') || lower.includes('service update')) {
+    if (lower.includes('unavailable') || lower.includes('temporarily') || lower.includes('closed')) {
       return { id: s, icon: '⚠', title: 'Service Update', lines: [s], time: undefined };
     }
-
-    // fallback
     return { id: s, icon: '✉', title: 'Notification', lines: [s], time: undefined };
   }
 
-  // If object, try to extract structured info
   const id = raw.id ?? raw.key ?? JSON.stringify(raw);
   const message = raw.message ?? raw.text ?? raw.body ?? '';
   const lowerMsg = String(message).toLowerCase();
@@ -63,16 +50,9 @@ function normalize(raw: RawNotification) {
   if ((raw.type ?? '').toString().toLowerCase().includes('turn') || lowerMsg.includes('your turn') || lowerMsg.includes('approaching')) {
     return { id, icon: '●', title: raw.title ?? 'Your turn is approaching!', lines: Array.isArray(message) ? message : [String(message)], time: ts };
   }
-  if ((raw.type ?? '').toString().toLowerCase().includes('update') || lowerMsg.includes('position changed') || lowerMsg.includes('position changed from') || (raw.oldPosition && raw.newPosition)) {
-    // construct a friendly line when old/new positions present
+  if ((raw.type ?? '').toString().toLowerCase().includes('update') || lowerMsg.includes('position changed') || (raw.oldPosition && raw.newPosition)) {
     if (raw.oldPosition && raw.newPosition && raw.serviceName) {
-      return {
-        id,
-        icon: '●',
-        title: raw.title ?? 'Queue Updated',
-        lines: [`Your position changed from #${raw.oldPosition} to #${raw.newPosition}.`],
-        time: ts,
-      };
+      return { id, icon: '●', title: raw.title ?? 'Queue Updated', lines: [`Your position changed from #${raw.oldPosition} to #${raw.newPosition}.`], time: ts };
     }
     return { id, icon: '●', title: raw.title ?? 'Queue Updated', lines: [String(message)], time: ts };
   }
@@ -83,13 +63,24 @@ function normalize(raw: RawNotification) {
     return { id, icon: '⚠', title: raw.title ?? 'Service Update', lines: Array.isArray(message) ? message : [String(message)], time: ts };
   }
 
-  // fallback
   return { id, icon: raw.icon ?? '✉', title: raw.title ?? 'Notification', lines: Array.isArray(message) ? message : [String(message)], time: ts };
 }
 
 export default function UserNotificationsScreen() {
-  const { notifications } = useUserQueue();
-  const items = (notifications ?? []).map(normalize);
+  const { notifications: baseNotifications, active, history } = useUserQueue();
+
+  // dev-only: generate mocks from current queue state; keep production unchanged
+  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+  const mockNotifications = isDev ? generateMockNotifications(active, history) : [];
+
+  // If you also want a targeted developer user, handle that here (not inside the hook)
+  const devUserName = 'Jordan Reyes';
+  const jordanMocks = isDev && (baseNotifications as any[]).length && (typeof (global as any).__TEST_JORDAN__ !== 'undefined' || false) ? [] : [];
+  // (Optionally create targeted mocks here if you need — keep them in the UI layer)
+
+  const combined = [...mockNotifications, ...(baseNotifications ?? [])];
+
+  const items = combined.map(normalize);
 
   return (
     <Screen title="Notifications" subtitle="Recent messages" nav={<UserNav />}>
