@@ -14,6 +14,7 @@ export type Service = {
 
 export type QueueEntry = {
   id: string;
+  accountId?: string;
   name: string;
   ticket: string;
   joinedAt: string;
@@ -31,4 +32,12 @@ export type Account = {
 export type Session = {
   token: string;
   account: Account;
+};
+
+export type QueueVisit = QueueEntry & {
+  accountId: string;
+  serviceId: string;
+  serviceName: string;
+  endedAt: string;
+  outcome: 'served' | 'left' | 'removed' | 'cancelled';
 };
