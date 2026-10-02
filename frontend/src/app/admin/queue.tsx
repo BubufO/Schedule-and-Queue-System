@@ -5,8 +5,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { AdminNav } from '@/components/admin-nav';
 import {
-  AdminNav,
   AppButton,
   Card,
   FilterChips,
@@ -15,23 +15,23 @@ import {
   SearchInput,
   SectionLabel,
   StatusBadge,
-} from '@/components/admin/ui';
+} from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Spacing } from '@/lib/theme';
 import {
   estimatedWait,
   filterServices,
   statusFilterOptions,
-  useAdminStore,
+  useQueueStore,
   type StatusFilter,
-} from '@/context/admin-store';
-import { useTheme } from '@/hooks/use-theme';
+} from '@/lib/queue-store';
+import { useTheme } from '@/lib/use-theme';
 
 export default function QueueScreen() {
   const theme = useTheme();
   const params = useLocalSearchParams<{ service?: string }>();
   const { services, queues, nowServing, toggleQueue, moveEntry, removeEntry, serveNext } =
-    useAdminStore();
+    useQueueStore();
   const [selectedId, setSelectedId] = useState(params.service ?? services[0]?.id);
 
   // Follow the dashboard's "Manage queue" deep link.
@@ -175,7 +175,7 @@ function ServicePicker({
   onSelect: (id: string) => void;
 }) {
   const theme = useTheme();
-  const { services, queues } = useAdminStore();
+  const { services, queues } = useQueueStore();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [sort, setSort] = useState<SortKey>('longest');

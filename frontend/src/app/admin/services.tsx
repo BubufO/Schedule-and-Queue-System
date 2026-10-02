@@ -4,8 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, TextInput, View, Pressable, Text } from 'react-native';
 
+import { AdminNav } from '@/components/admin-nav';
 import {
-  AdminNav,
   AppButton,
   Badge,
   Card,
@@ -14,12 +14,12 @@ import {
   SearchInput,
   SectionLabel,
   StatusBadge,
-} from '@/components/admin/ui';
+} from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
-import { filterServices, useAdminStore, type ServiceInput } from '@/context/admin-store';
-import type { Priority, Service } from '@/data/mock-data';
-import { useTheme } from '@/hooks/use-theme';
+import { Spacing } from '@/lib/theme';
+import { filterServices, useQueueStore, type ServiceInput } from '@/lib/queue-store';
+import type { Priority, Service } from '@/lib/types';
+import { useTheme } from '@/lib/use-theme';
 
 const NAME_MAX = 100;
 const PRIORITIES: Priority[] = ['low', 'medium', 'high'];
@@ -30,7 +30,7 @@ export default function ServicesScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ edit?: string; new?: string }>();
   const theme = useTheme();
-  const { services, queues, saveService, deleteService } = useAdminStore();
+  const { services, queues, saveService, deleteService } = useQueueStore();
   const [mode, setMode] = useState<FormMode>({ kind: 'closed' });
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState('');

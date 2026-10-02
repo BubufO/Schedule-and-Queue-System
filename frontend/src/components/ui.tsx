@@ -1,6 +1,5 @@
-// Small shared building blocks for the admin screens.
+// Shared UI primitives used across every screen.
 
-import { usePathname, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import {
   Platform,
@@ -16,9 +15,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import type { Priority } from '@/data/mock-data';
-import { useTheme } from '@/hooks/use-theme';
+import { BottomTabInset, MaxContentWidth, Spacing } from '@/lib/theme';
+import type { Priority } from '@/lib/types';
+import { useTheme } from '@/lib/use-theme';
 
 // Space reserved for the floating web tab bar at the top of the page.
 const WebTabBarHeight = 96;
@@ -243,38 +242,6 @@ export function FilterChips<T extends string>({
   );
 }
 
-const adminLinks = [
-  { href: '/admin', label: 'Overview' },
-  { href: '/admin/services', label: 'Services' },
-  { href: '/admin/queue', label: 'Queues' },
-] as const;
-
-// Secondary navigation shared by the admin screens.
-export function AdminNav() {
-  const theme = useTheme();
-  const router = useRouter();
-  const pathname = usePathname();
-  return (
-    <View style={[styles.adminNav, { backgroundColor: theme.backgroundElement }]}>
-      {adminLinks.map((link) => {
-        const active = pathname === link.href;
-        return (
-          <Pressable
-            key={link.href}
-            accessibilityRole="link"
-            accessibilityState={{ selected: active }}
-            onPress={() => router.navigate(link.href)}
-            style={[styles.adminNavItem, active && { backgroundColor: theme.background }]}>
-            <Text style={[styles.adminNavLabel, { color: active ? theme.text : theme.textSecondary }]}>
-              {link.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   search: {
     flexDirection: 'row',
@@ -310,21 +277,6 @@ const styles = StyleSheet.create({
   },
   chipLabel: {
     fontSize: 13,
-    fontWeight: 600,
-  },
-  adminNav: {
-    flexDirection: 'row',
-    alignSelf: 'flex-start',
-    borderRadius: 10,
-    padding: 3,
-  },
-  adminNavItem: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-  },
-  adminNavLabel: {
-    fontSize: 14,
     fontWeight: 600,
   },
   scrollContent: {

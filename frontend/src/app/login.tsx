@@ -1,6 +1,6 @@
 // Login / Registration: placeholder, to be designed in a later assignment.
 
-import { Badge, Card, Screen } from '@/components/admin/ui';
+import { Badge, Card, Screen } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 
 export default function LoginScreen() {

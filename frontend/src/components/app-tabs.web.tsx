@@ -11,7 +11,7 @@ import { Pressable, View, StyleSheet, useWindowDimensions } from 'react-native';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from '@/lib/theme';
 
 export default function AppTabs() {
   return (

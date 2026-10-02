@@ -1,23 +1,6 @@
-// Dummy data for the admin screens. No backend yet; this is replaced by API calls later.
+// Seed data standing in for the backend. Replaced by API calls later.
 
-export type Priority = 'low' | 'medium' | 'high';
-
-export type Service = {
-  id: string;
-  name: string;
-  description: string;
-  durationMinutes: number;
-  priority: Priority;
-  isOpen: boolean;
-  ticketPrefix: string;
-};
-
-export type QueueEntry = {
-  id: string;
-  name: string;
-  ticket: string;
-  joinedAt: string;
-};
+import type { QueueEntry, Service } from '@/lib/types';
 
 export const initialServices: Service[] = [
   {

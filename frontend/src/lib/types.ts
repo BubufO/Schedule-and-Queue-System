@@ -1,0 +1,20 @@
+// Domain model. Kept separate from mock-data so it survives the switch to a real API.
+
+export type Priority = 'low' | 'medium' | 'high';
+
+export type Service = {
+  id: string;
+  name: string;
+  description: string;
+  durationMinutes: number;
+  priority: Priority;
+  isOpen: boolean;
+  ticketPrefix: string;
+};
+
+export type QueueEntry = {
+  id: string;
+  name: string;
+  ticket: string;
+  joinedAt: string;
+};

@@ -1,15 +1,10 @@
-// In-memory store shared by the admin screens so actions on one tab show up on the others.
+// In-memory store shared by every screen so actions on one show up on the others.
 // UI simulation only: nothing is persisted and resets on reload.
 
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
-import {
-  initialQueues,
-  initialServices,
-  type Priority,
-  type QueueEntry,
-  type Service,
-} from '@/data/mock-data';
+import { initialQueues, initialServices } from '@/lib/mock-data';
+import type { Priority, QueueEntry, Service } from '@/lib/types';
 
 export type ServiceInput = {
   name: string;
@@ -20,7 +15,7 @@ export type ServiceInput = {
 
 export type NowServing = { entry: QueueEntry; startedAt: string };
 
-type AdminStore = {
+type QueueStore = {
   services: Service[];
   queues: Record<string, QueueEntry[]>;
   nowServing: Record<string, NowServing | undefined>;
@@ -32,13 +27,13 @@ type AdminStore = {
   serveNext: (serviceId: string) => void;
 };
 
-const AdminStoreContext = createContext<AdminStore | null>(null);
+const QueueStoreContext = createContext<QueueStore | null>(null);
 
 function timeNow() {
   return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-export function AdminStoreProvider({ children }: { children: ReactNode }) {
+export function QueueStoreProvider({ children }: { children: ReactNode }) {
   const [services, setServices] = useState<Service[]>(initialServices);
   const [queues, setQueues] = useState<Record<string, QueueEntry[]>>(initialQueues);
   const [nowServing, setNowServing] = useState<Record<string, NowServing | undefined>>({});
@@ -97,7 +92,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AdminStoreContext.Provider
+    <QueueStoreContext.Provider
       value={{
         services,
         queues,
@@ -110,13 +105,13 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         serveNext,
       }}>
       {children}
-    </AdminStoreContext.Provider>
+    </QueueStoreContext.Provider>
   );
 }
 
-export function useAdminStore() {
-  const store = useContext(AdminStoreContext);
-  if (!store) throw new Error('useAdminStore must be used inside AdminStoreProvider');
+export function useQueueStore() {
+  const store = useContext(QueueStoreContext);
+  if (!store) throw new Error('useQueueStore must be used inside QueueStoreProvider');
   return store;
 }
 

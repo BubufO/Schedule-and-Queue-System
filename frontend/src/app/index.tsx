@@ -3,10 +3,10 @@
 import { useRouter, type Href } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Badge, Screen, SectionLabel } from '@/components/admin/ui';
+import { Badge, Screen, SectionLabel } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Spacing } from '@/lib/theme';
+import { useTheme } from '@/lib/use-theme';
 
 type Destination = {
   href: Href;

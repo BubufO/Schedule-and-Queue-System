@@ -4,8 +4,8 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { AdminNav } from '@/components/admin-nav';
 import {
-  AdminNav,
   AppButton,
   Card,
   FilterChips,
@@ -14,22 +14,22 @@ import {
   SearchInput,
   SectionLabel,
   StatusBadge,
-} from '@/components/admin/ui';
+} from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Spacing } from '@/lib/theme';
 import {
   estimatedWait,
   filterServices,
   statusFilterOptions,
-  useAdminStore,
+  useQueueStore,
   type StatusFilter,
-} from '@/context/admin-store';
-import { useTheme } from '@/hooks/use-theme';
+} from '@/lib/queue-store';
+import { useTheme } from '@/lib/use-theme';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const { services, queues, toggleQueue } = useAdminStore();
+  const { services, queues, toggleQueue } = useQueueStore();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const visible = filterServices(services, query, status);
