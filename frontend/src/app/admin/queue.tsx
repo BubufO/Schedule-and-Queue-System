@@ -30,7 +30,7 @@ import { useTheme } from '@/lib/use-theme';
 export default function QueueScreen() {
   const theme = useTheme();
   const params = useLocalSearchParams<{ service?: string }>();
-  const { services, queues, nowServing, toggleQueue, moveEntry, removeEntry, serveNext } =
+  const { services, queues, nowServing, toggleQueue, moveEntry, removeEntry, serveNext, completeService } =
     useQueueStore();
   const [selectedId, setSelectedId] = useState(params.service ?? services[0]?.id);
 
@@ -96,7 +96,7 @@ export default function QueueScreen() {
               <>
                 <ThemedText style={styles.servingTicket}>{serving.entry.ticket}</ThemedText>
                 <ThemedText type="small">
-                  {serving.entry.name} · started {serving.startedAt}
+                  {serving.entry.name} · started {new Date(serving.startedAt).toLocaleTimeString()}
                 </ThemedText>
               </>
             ) : (
@@ -105,10 +105,11 @@ export default function QueueScreen() {
               </ThemedText>
             )}
           </View>
+          {serving && <AppButton label="Complete service" variant="primary" onPress={() => completeService(service.id)} />}
           <AppButton
             label={queue.length ? `Serve next (${queue[0].ticket})` : 'Queue empty'}
             variant="primary"
-            disabled={!queue.length}
+            disabled={!queue.length || !!serving}
             onPress={() => serveNext(service.id)}
           />
         </View>
@@ -131,7 +132,7 @@ export default function QueueScreen() {
             <View style={styles.entryText}>
               <ThemedText type="smallBold">{entry.name}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {entry.ticket} · joined {entry.joinedAt} · ~{estimatedWait(service, index)} min wait
+                {entry.ticket} · joined {Number.isNaN(Date.parse(entry.joinedAt)) ? entry.joinedAt : new Date(entry.joinedAt).toLocaleTimeString()} · ~{estimatedWait(service, index)} min wait
               </ThemedText>
             </View>
             <View style={styles.entryActions}>
