@@ -1,4 +1,4 @@
-// Login: signs in against the dummy API gateway, then sends clients to the user dashboard
+// Login: signs in with the dummy API gateway, then sends clients to the user dashboard
 // and administrators to the admin dashboard.
 
 import { useRouter } from 'expo-router';
