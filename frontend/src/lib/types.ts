@@ -18,3 +18,17 @@ export type QueueEntry = {
   ticket: string;
   joinedAt: string;
 };
+
+export type Role = 'client' | 'admin';
+
+export type Account = {
+  id: string;
+  username: string;
+  displayName: string;
+  role: Role;
+};
+
+export type Session = {
+  token: string;
+  account: Account;
+};

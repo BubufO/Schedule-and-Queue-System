@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
   type StyleProp,
+  type TextInputProps,
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -242,6 +243,68 @@ export function FilterChips<T extends string>({
   );
 }
 
+// Labelled form row: label, optional required marker, hint or accessory, and an error line.
+export function Field({
+  label,
+  required,
+  error,
+  hint,
+  accessory,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  error?: string;
+  hint?: string;
+  accessory?: ReactNode;
+  children: ReactNode;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.field}>
+      <View style={styles.fieldLabelRow}>
+        <ThemedText type="smallBold">
+          {label}
+          {required ? <Text style={{ color: theme.danger }}> *</Text> : null}
+        </ThemedText>
+        {accessory ??
+          (hint ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              {hint}
+            </ThemedText>
+          ) : null)}
+      </View>
+      {children}
+      {error ? (
+        <ThemedText type="small" style={{ color: theme.danger }}>
+          {error}
+        </ThemedText>
+      ) : null}
+    </View>
+  );
+}
+
+// Text input matching the app's field styling; `error` switches the border to the danger color.
+export function TextField({ error, style, ...rest }: TextInputProps & { error?: string }) {
+  const theme = useTheme();
+  return (
+    <TextInput
+      placeholderTextColor={theme.textSecondary}
+      {...rest}
+      style={[
+        styles.input,
+        {
+          color: theme.text,
+          backgroundColor: theme.background,
+          borderColor: error ? theme.danger : theme.backgroundSelected,
+        },
+        rest.multiline && styles.multiline,
+        style,
+      ]}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   search: {
     flexDirection: 'row',
@@ -339,6 +402,27 @@ const styles = StyleSheet.create({
   badgeLabel: {
     fontSize: 12,
     fontWeight: 600,
+  },
+  field: {
+    gap: Spacing.one,
+    marginBottom: Spacing.two,
+  },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: Spacing.two,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  multiline: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   sectionLabel: {
     textTransform: 'uppercase',

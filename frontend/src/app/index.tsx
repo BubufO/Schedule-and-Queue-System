@@ -19,8 +19,7 @@ const clientPages: Destination[] = [
   {
     href: '/login',
     title: 'Login / Register',
-    description: 'Sign in or create an account.',
-    comingSoon: true,
+    description: 'Sign in to be routed to your dashboard.',
   },
   {
     href: '/user',

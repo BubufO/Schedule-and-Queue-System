@@ -2,18 +2,20 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, TextInput, View, Pressable, Text } from 'react-native';
+import { StyleSheet, View, Pressable, Text } from 'react-native';
 
 import { AdminNav } from '@/components/admin-nav';
 import {
   AppButton,
   Badge,
   Card,
+  Field,
   PriorityBadge,
   Screen,
   SearchInput,
   SectionLabel,
   StatusBadge,
+  TextField,
 } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/lib/theme';
@@ -204,15 +206,6 @@ function ServiceForm({
     });
   };
 
-  const inputStyle = (error?: string) => [
-    styles.input,
-    {
-      color: theme.text,
-      backgroundColor: theme.background,
-      borderColor: error ? theme.danger : theme.backgroundSelected,
-    },
-  ];
-
   return (
     <Card highlighted>
       <ThemedText type="smallBold" style={styles.formTitle}>
@@ -220,36 +213,34 @@ function ServiceForm({
       </ThemedText>
 
       <Field label="Service name" required error={show('name')} hint={`${name.length}/${NAME_MAX}`}>
-        <TextInput
+        <TextField
           value={name}
           onChangeText={setName}
           maxLength={NAME_MAX}
           placeholder="e.g. Academic Advising"
-          placeholderTextColor={theme.textSecondary}
-          style={inputStyle(show('name'))}
+          error={show('name')}
         />
       </Field>
 
       <Field label="Description" required error={show('description')}>
-        <TextInput
+        <TextField
           value={description}
           onChangeText={setDescription}
           placeholder="What does this service help with?"
-          placeholderTextColor={theme.textSecondary}
           multiline
           numberOfLines={3}
-          style={[inputStyle(show('description')), styles.multiline]}
+          error={show('description')}
         />
       </Field>
 
       <Field label="Expected duration (minutes)" required error={show('duration')}>
-        <TextInput
+        <TextField
           value={duration}
           onChangeText={(text) => setDuration(text.replace(/[^0-9]/g, ''))}
           placeholder="e.g. 15"
-          placeholderTextColor={theme.textSecondary}
           keyboardType="number-pad"
-          style={[inputStyle(show('duration')), styles.durationInput]}
+          error={show('duration')}
+          style={styles.durationInput}
         />
       </Field>
 
@@ -292,43 +283,6 @@ function ServiceForm({
         />
       </View>
     </Card>
-  );
-}
-
-function Field({
-  label,
-  required,
-  error,
-  hint,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  const theme = useTheme();
-  return (
-    <View style={styles.field}>
-      <View style={styles.fieldLabelRow}>
-        <ThemedText type="smallBold">
-          {label}
-          {required ? <Text style={{ color: theme.danger }}> *</Text> : null}
-        </ThemedText>
-        {hint ? (
-          <ThemedText type="small" themeColor="textSecondary">
-            {hint}
-          </ThemedText>
-        ) : null}
-      </View>
-      {children}
-      {error ? (
-        <ThemedText type="small" style={{ color: theme.danger }}>
-          {error}
-        </ThemedText>
-      ) : null}
-    </View>
   );
 }
 
@@ -378,26 +332,6 @@ const styles = StyleSheet.create({
   formTitle: {
     fontSize: 18,
     marginBottom: Spacing.one,
-  },
-  field: {
-    gap: Spacing.one,
-    marginBottom: Spacing.two,
-  },
-  fieldLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  multiline: {
-    minHeight: 80,
-    textAlignVertical: 'top',
   },
   durationInput: {
     maxWidth: 160,
