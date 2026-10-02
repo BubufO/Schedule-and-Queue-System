@@ -12,8 +12,10 @@ export default function UserDashboardScreen() {
     <SectionLabel>Current queue</SectionLabel>
     <UserVisit />
     <AppButton label="View queue status" onPress={() => router.push('/user/queue-status')} />
+
     <SectionLabel>{`Notifications (${notifications.length})`}</SectionLabel>
-    <Card>{notifications.length ? notifications.map(message => <ThemedText key={message} accessibilityLiveRegion="polite">{message}</ThemedText>) : <ThemedText>No notifications yet.</ThemedText>}</Card>
+    <AppButton label={`View notifications (${notifications.length})`} onPress={() => router.push('/user/notifications')} />
+
     <SectionLabel>{`Available services (${open.length})`}</SectionLabel>
     {!open.length && <Card><ThemedText>No services are open right now.</ThemedText></Card>}
     {open.map(service => <Card key={service.id}>

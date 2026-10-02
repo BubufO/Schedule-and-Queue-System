@@ -1,11 +1,6 @@
 import { useAuth } from '@/lib/auth-store';
 import { useQueueStore } from '@/lib/queue-store';
 
-export const outcomeLabels = { served: 'Served', left: 'Left queue', removed: 'Removed by staff', cancelled: 'Service cancelled' };
-export function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-}
 export function useUserQueue() {
   const { session } = useAuth();
   const store = useQueueStore();
