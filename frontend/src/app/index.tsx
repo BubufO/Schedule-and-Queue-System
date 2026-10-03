@@ -1,39 +1,80 @@
 // Home: entry point for clients. Admin screens are only reachable by signing in as an admin.
 
-import { useRouter, type Href } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { AppButton, Badge, Field, Screen, SectionLabel, TextField } from '@/components/ui';
+import { AppButton, Badge, Field, Screen, TextField } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { estimatedWait, serviceFromJoinLink, useQueueStore } from '@/lib/queue-store';
 import { Spacing } from '@/lib/theme';
 import { useTheme } from '@/lib/use-theme';
 
-type Destination = {
-  href: Href;
-  title: string;
-  description: string;
-  comingSoon?: boolean;
-};
-
-const loginPage: Destination = {
-  href: '/login',
-  title: 'Login / Register',
-  description: 'Sign in to be routed to your dashboard.',
-};
+// Below this width the hero and join card stack instead of sitting side by side.
+const WideWidth = 900;
+const LandingMaxWidth = 1100;
 
 export default function HomeScreen() {
+  const wide = useWindowDimensions().width >= WideWidth;
   return (
-    <Screen
-      title="Welcome to QueueSmart"
-      subtitle="Join queues and see your wait time, all in one place.">
-      <SectionLabel>For clients</SectionLabel>
-      <View style={styles.grid}>
-        <GuestJoinCard />
-        <DestinationCard destination={loginPage} />
+    <Screen maxWidth={LandingMaxWidth} footer={<LandingFooter />}>
+      <View style={[styles.layout, wide && styles.layoutWide]}>
+        <Hero wide={wide} />
+        <View style={wide ? styles.joinColumnWide : undefined}>
+          <GuestJoinCard />
+        </View>
       </View>
     </Screen>
+  );
+}
+
+function Hero({ wide }: { wide: boolean }) {
+  const router = useRouter();
+  const theme = useTheme();
+  return (
+    <View style={[styles.hero, wide && styles.heroWide]}>
+      <ThemedText type="smallBold" style={{ color: theme.accent }}>
+        QUEUESMART
+      </ThemedText>
+      <ThemedText accessibilityRole="header" style={[styles.headline, wide && styles.headlineWide]}>
+        Queue from anywhere to anything 
+      </ThemedText>
+      <ThemedText themeColor="textSecondary" style={styles.lede}>
+        Join a queue from anywhere, see your place in line, and get an estimated wait time, so
+        you can show up right when it's your turn.
+      </ThemedText>
+      <View style={styles.heroActions}>
+        <AppButton label="Create account" onPress={() => router.navigate('/register')} />
+        <Pressable accessibilityRole="link" onPress={() => router.navigate('/login')}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Have an account?{' '}
+            <ThemedText type="smallBold" style={{ color: theme.accent }}>
+              Sign in →
+            </ThemedText>
+          </ThemedText>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function LandingFooter() {
+  const router = useRouter();
+  const theme = useTheme();
+  return (
+    <View style={[styles.footer, { borderTopColor: theme.backgroundSelected }]}>
+      <ThemedText type="small" themeColor="textSecondary">
+        © {new Date().getFullYear()} QueueSmart and Friends. No rights reserved.
+      </ThemedText>
+      <Pressable accessibilityRole="link" onPress={() => router.navigate('/login')}>
+        <ThemedText type="small" themeColor="textSecondary">
+          Run a service?{' '}
+          <ThemedText type="smallBold" style={{ color: theme.accent }}>
+            Manage your queues →
+          </ThemedText>
+        </ThemedText>
+      </Pressable>
+    </View>
   );
 }
 
@@ -77,6 +118,11 @@ function GuestJoinCard() {
     setFailure(null);
   };
 
+  const cardStyle = [
+    styles.card,
+    { backgroundColor: theme.backgroundElement, borderColor: theme.accent },
+  ];
+
   if (visit) {
     const service = services.find((s) => s.id === visit.serviceId);
     const serving = nowServing[visit.serviceId];
@@ -85,7 +131,7 @@ function GuestJoinCard() {
     const entry = serving?.entry.id === visit.entryId ? serving.entry : queue[index];
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+      <View style={cardStyle}>
         <View style={styles.cardTop}>
           <ThemedText type="smallBold" style={styles.cardTitle}>
             {service?.name ?? 'Queue visit'}
@@ -122,10 +168,13 @@ function GuestJoinCard() {
   }
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
-      <ThemedText type="smallBold" style={styles.cardTitle}>
-        Join with a link
-      </ThemedText>
+    <View style={cardStyle}>
+      <View style={styles.cardTop}>
+        <ThemedText type="smallBold" style={styles.cardTitle}>
+          Join with a link
+        </ThemedText>
+        <Badge label="No account needed" tone="accent" />
+      </View>
       <ThemedText type="small" themeColor="textSecondary">
         Got a queue link? Join once without an account.
       </ThemedText>
@@ -163,46 +212,61 @@ function GuestJoinCard() {
   );
 }
 
-function DestinationCard({ destination }: { destination: Destination }) {
-  const router = useRouter();
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="link"
-      onPress={() => router.navigate(destination.href)}
-      style={({ pressed }) => [
-        styles.card,
-        { backgroundColor: theme.backgroundElement },
-        pressed && { opacity: 0.75 },
-      ]}>
-      <View style={styles.cardTop}>
-        <ThemedText type="smallBold" style={styles.cardTitle}>
-          {destination.title}
-        </ThemedText>
-        {destination.comingSoon ? <Badge label="Coming soon" /> : null}
-      </View>
-      <ThemedText type="small" themeColor="textSecondary">
-        {destination.description}
-      </ThemedText>
-      <ThemedText type="smallBold" style={{ color: theme.accent }}>
-        Open →
-      </ThemedText>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  grid: {
+  layout: {
+    gap: Spacing.five,
+  },
+  layoutWide: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    paddingVertical: Spacing.five,
+  },
+  joinColumnWide: {
+    flexBasis: 400,
+    flexShrink: 0,
+  },
+  hero: {
     gap: Spacing.three,
   },
+  heroWide: {
+    flex: 1,
+  },
+  headline: {
+    fontSize: 36,
+    lineHeight: 42,
+    fontWeight: 800,
+  },
+  headlineWide: {
+    fontSize: 48,
+    lineHeight: 56,
+  },
+  lede: {
+    fontSize: 17,
+    lineHeight: 26,
+    maxWidth: 520,
+  },
+  heroActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: Spacing.three,
+    marginTop: Spacing.two,
+  },
   card: {
-    flexGrow: 1,
-    flexBasis: 220,
     borderRadius: Spacing.three,
-    padding: Spacing.three,
+    borderWidth: 1.5,
+    padding: Spacing.four,
     gap: Spacing.two,
+    ...Platform.select({
+      web: { boxShadow: '0 12px 32px rgba(37, 99, 235, 0.15)' },
+      default: {
+        shadowColor: '#2563EB',
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 6,
+      },
+    }),
   },
   cardTop: {
     flexDirection: 'row',
@@ -213,5 +277,15 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 17,
+  },
+  footer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: Spacing.five,
+    paddingTop: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });
