@@ -146,7 +146,7 @@ export default function LoginScreen() {
         />
       </Card>
 
-      <AppButton label="Create an account" disabled onPress={() => {}} />
+      <AppButton label="Create an account" onPress={() => router.navigate('/register')} />
 
       <View style={styles.credentials}>
         <ThemedText type="small" themeColor="textSecondary">

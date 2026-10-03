@@ -6,19 +6,40 @@
 import type { Href } from 'expo-router';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
-import { login as apiLogin, logout as apiLogout } from '@/lib/api/auth';
-import type { Role, Session } from '@/lib/types';
+import {
+  login as apiLogin,
+  logout as apiLogout,
+  register as apiRegister,
+  resendVerification as apiResendVerification,
+  verify as apiVerify,
+} from '@/lib/api/auth';
+import type {
+  RegistrationInput,
+  Role,
+  Session,
+  VerificationChallenge,
+  VerificationChannel,
+} from '@/lib/types';
 
 type AuthStore = {
   session: Session | null;
+  // The registration waiting on a code, carried from the register screen to the verify screen.
+  pendingVerification: VerificationChallenge | null;
   signIn: (username: string, password: string) => Promise<Session>;
   signOut: () => Promise<void>;
+  register: (input: RegistrationInput) => Promise<VerificationChallenge>;
+  verify: (code: string) => Promise<Session>;
+  resendCode: (channel?: VerificationChannel) => Promise<VerificationChallenge>;
+  cancelVerification: () => void;
 };
 
 const AuthContext = createContext<AuthStore | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [pendingVerification, setPendingVerification] = useState<VerificationChallenge | null>(
+    null,
+  );
 
   // Rejects with an ApiError the caller shows to the user; the session only changes on success.
   const signIn = async (username: string, password: string) => {
@@ -36,8 +57,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const register = async (input: RegistrationInput) => {
+    const challenge = await apiRegister(input);
+    setPendingVerification(challenge);
+    return challenge;
+  };
+
+  // A correct code activates the account and signs it in, like signIn does.
+  const verify = async (code: string) => {
+    if (!pendingVerification) throw new Error('No registration is waiting for a code.');
+    const next = await apiVerify(pendingVerification.verificationId, code);
+    setPendingVerification(null);
+    setSession(next);
+    return next;
+  };
+
+  const resendCode = async (channel?: VerificationChannel) => {
+    if (!pendingVerification) throw new Error('No registration is waiting for a code.');
+    const challenge = await apiResendVerification(pendingVerification.verificationId, channel);
+    setPendingVerification(challenge);
+    return challenge;
+  };
+
+  const cancelVerification = () => setPendingVerification(null);
+
   return (
-    <AuthContext.Provider value={{ session, signIn, signOut }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider
+      value={{
+        session,
+        pendingVerification,
+        signIn,
+        signOut,
+        register,
+        verify,
+        resendCode,
+        cancelVerification,
+      }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 
@@ -51,6 +108,11 @@ export function useAuth() {
 export const homeForRole: Record<Role, Href> = {
   client: '/user',
   admin: '/admin',
+};
+
+export const channelLabel: Record<VerificationChannel, string> = {
+  email: 'Email',
+  sms: 'Text message',
 };
 
 export const roleLabel: Record<Role, string> = {
