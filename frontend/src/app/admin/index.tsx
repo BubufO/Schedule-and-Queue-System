@@ -1,3 +1,4 @@
+
 // Admin Dashboard: list of services, current queue lengths, and quick open/close actions.
 
 import { useRouter } from 'expo-router';
@@ -51,11 +52,17 @@ export default function DashboardScreen() {
       subtitle={today}
       nav={<AdminNav />}
       action={
-        <AppButton
-          label="+ New service"
-          variant="primary"
-          onPress={() => router.push('/admin/services?new=1')}
-        />
+        <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+          <AppButton
+            label="+ New service"
+            variant="primary"
+            onPress={() => router.push('/admin/services?new=1')}
+          />
+          <AppButton
+            label="Settings"
+            onPress={() => router.push('/admin/settings')}
+          />
+        </View>
       }>
       <View style={styles.stats}>
         <StatCard label="People waiting" value={String(totalWaiting)} />
