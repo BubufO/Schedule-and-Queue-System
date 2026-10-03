@@ -1,11 +1,13 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useColorScheme } from 'react-native';
 
+import { useAuth } from '@/lib/auth-store';
 import { Colors } from '@/lib/theme';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const isAdmin = useAuth().session?.account.role === 'admin';
 
   return (
     <NativeTabs
@@ -28,7 +30,8 @@ export default function AppTabs() {
         />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="admin">
+      {/* Only admins see (or can navigate to) the admin tab. */}
+      <NativeTabs.Trigger name="admin" hidden={!isAdmin}>
         <NativeTabs.Trigger.Label>Admin</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           src={require('@/assets/images/tabIcons/explore.png')}

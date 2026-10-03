@@ -1,4 +1,4 @@
-// Home: entry point with links to every part of the application.
+// Home: entry point for clients. Admin screens are only reachable by signing in as an admin.
 
 import { useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
@@ -23,40 +23,15 @@ const loginPage: Destination = {
   description: 'Sign in to be routed to your dashboard.',
 };
 
-const adminPages: Destination[] = [
-  {
-    href: '/admin',
-    title: 'Admin Dashboard',
-    description: 'All services, current queue lengths, and quick open/close actions.',
-  },
-  {
-    href: '/admin/services',
-    title: 'Service Management',
-    description: 'Create, edit, and delete services.',
-  },
-  {
-    href: '/admin/queue',
-    title: 'Queue Management',
-    description: 'Find a service, reorder or remove people, and serve the next person.',
-  },
-];
-
 export default function HomeScreen() {
   return (
     <Screen
       title="Welcome to QueueSmart"
-      subtitle="Join queues, see your wait time, and manage services, all in one place.">
+      subtitle="Join queues and see your wait time, all in one place.">
       <SectionLabel>For clients</SectionLabel>
       <View style={styles.grid}>
         <GuestJoinCard />
         <DestinationCard destination={loginPage} />
-      </View>
-
-      <SectionLabel>For administrators</SectionLabel>
-      <View style={styles.grid}>
-        {adminPages.map((d) => (
-          <DestinationCard key={d.title} destination={d} />
-        ))}
       </View>
     </Screen>
   );
