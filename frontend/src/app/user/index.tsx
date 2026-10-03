@@ -8,7 +8,11 @@ export default function UserDashboardScreen() {
   const { session, services, notifications } = useUserQueue();
   const router = useRouter();
   const open = services.filter(s => s.isOpen);
-  return <Screen title="User Dashboard" subtitle={`Welcome, ${session?.account.displayName ?? ''}`} nav={<UserNav />}>
+  return <Screen
+    title="User Dashboard"
+    subtitle={`Welcome, ${session?.account.displayName ?? ''}`}
+    nav={<UserNav />}
+    action={<AppButton label="Settings" onPress={() => router.push('/user/settings')} />}>
     <SectionLabel>Current queue</SectionLabel>
     <UserVisit />
     <AppButton label="View queue status" onPress={() => router.push('/user/queue-status')} />
