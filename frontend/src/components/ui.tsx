@@ -28,12 +28,16 @@ export function Screen({
   subtitle,
   action,
   nav,
+  footer,
+  maxWidth = MaxContentWidth,
   children,
 }: {
-  title: string;
+  title?: string;
   subtitle?: string;
   action?: ReactNode;
   nav?: ReactNode;
+  footer?: ReactNode;
+  maxWidth?: number;
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -46,20 +50,23 @@ export function Screen({
       style={{ flex: 1, backgroundColor: theme.background }}
       contentContainerStyle={[styles.scrollContent, { paddingTop, paddingBottom }]}
       keyboardShouldPersistTaps="handled">
-      <View style={styles.inner}>
+      <View style={[styles.inner, { maxWidth }]}>
         {nav}
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <ThemedText style={styles.title}>{title}</ThemedText>
-            {subtitle ? (
-              <ThemedText type="small" themeColor="textSecondary">
-                {subtitle}
-              </ThemedText>
-            ) : null}
+        {title ? (
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <ThemedText style={styles.title}>{title}</ThemedText>
+              {subtitle ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {subtitle}
+                </ThemedText>
+              ) : null}
+            </View>
+            {action}
           </View>
-          {action}
-        </View>
+        ) : null}
         {children}
+        {footer}
       </View>
     </ScrollView>
   );
