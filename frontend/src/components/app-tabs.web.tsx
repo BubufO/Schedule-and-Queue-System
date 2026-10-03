@@ -1,4 +1,4 @@
-import {
+﻿import {
   Tabs,
   TabList,
   TabTrigger,
@@ -31,6 +31,7 @@ export default function AppTabs() {
           <TabTrigger name="login" href="/login" asChild>
             <TabButton>Login</TabButton>
           </TabTrigger>
+
         </CustomTabList>
       </TabList>
     </Tabs>

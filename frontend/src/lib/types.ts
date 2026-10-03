@@ -41,3 +41,15 @@ export type QueueVisit = QueueEntry & {
   endedAt: string;
   outcome: 'served' | 'left' | 'removed' | 'cancelled';
 };
+
+// Notification shape used by UI and (later) backend.
+export type Notification = {
+  id: string;
+  type?: 'joined' | 'update' | 'turn' | 'service' | 'history' | string;
+  title?: string;
+  message: string;
+  timestamp?: string; // ISO string
+  serviceId?: string;
+  oldPosition?: number;
+  newPosition?: number;
+};
