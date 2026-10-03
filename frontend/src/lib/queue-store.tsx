@@ -22,6 +22,7 @@ type QueueStore = Omit<State, 'sequence'> & {
   serveNext: (id: string) => void;
   completeService: (id: string) => void;
   joinQueue: (id: string) => void;
+  joinAsGuest: (id: string, name: string) => QueueEntry;
   leaveQueue: () => void;
 };
 const QueueStoreContext = createContext<QueueStore | null>(null);
@@ -98,6 +99,17 @@ export function QueueStoreProvider({ children }: { children: ReactNode }) {
       return { ...s, sequence, queues: { ...s.queues, [id]: [...(s.queues[id] ?? []), entry] } };
     });
   };
+  // One-time visit from a join link: no account, so it never appears in anyone's history.
+  const joinAsGuest = (id: string, name: string) => {
+    const current = latest.current;
+    const service = current.services.find(v => v.id === id);
+    if (!service) throw new Error('This service is no longer available.');
+    if (!service.isOpen) throw new Error('This service is currently closed.');
+    const sequence = current.sequence + 1;
+    const entry: QueueEntry = { id: `guest-${sequence}`, name, ticket: `${service.ticketPrefix}${sequence}`, joinedAt: new Date().toISOString() };
+    update(s => ({ ...s, sequence, queues: { ...s.queues, [id]: [...(s.queues[id] ?? []), entry] } }));
+    return entry;
+  };
   const leaveQueue = () => {
     const account = session?.account;
     if (!account) throw new Error('Please sign in first.');
@@ -109,7 +121,7 @@ export function QueueStoreProvider({ children }: { children: ReactNode }) {
       return { ...s, queues: { ...s.queues, [id]: s.queues[id].filter(e => e.id !== entry.id) }, history: archive(s, id, entry, 'left') };
     });
   };
-  return <QueueStoreContext.Provider value={{ ...state, toggleQueue, saveService, deleteService, moveEntry, removeEntry, serveNext, completeService, joinQueue, leaveQueue }}>{children}</QueueStoreContext.Provider>;
+  return <QueueStoreContext.Provider value={{ ...state, toggleQueue, saveService, deleteService, moveEntry, removeEntry, serveNext, completeService, joinQueue, joinAsGuest, leaveQueue }}>{children}</QueueStoreContext.Provider>;
 }
 export function useQueueStore() {
   const store = useContext(QueueStoreContext);
@@ -134,6 +146,12 @@ export function filterServices(services: Service[], query: string, status: Statu
     if (!q) return true;
     return s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q);
   });
+}
+
+// Accepts a full join link (https://queuesmart.app/join/it-help), a bare path, or just the code.
+export function serviceFromJoinLink(services: Service[], link: string) {
+  const code = link.trim().split(/[?#]/)[0].replace(/\/+$/, '').split('/').pop()?.toLowerCase();
+  return code ? services.find((s) => s.id.toLowerCase() === code) : undefined;
 }
 
 export function estimatedWait(service: Service, queueLength: number) {
