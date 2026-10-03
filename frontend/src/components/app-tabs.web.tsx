@@ -28,6 +28,8 @@ export default function AppTabs() {
           {/* Not shown in the bar, but still registered so login can route to the dashboards. */}
           <TabTrigger name="user" href="/user" style={styles.hidden} />
           <TabTrigger name="admin" href="/admin" style={styles.hidden} />
+          <TabTrigger name="register" href="/register" style={styles.hidden} />
+          <TabTrigger name="verify" href="/verify" style={styles.hidden} />
         </CustomTabList>
       </TabList>
     </Tabs>

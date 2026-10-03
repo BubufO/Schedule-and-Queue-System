@@ -46,6 +46,10 @@ export default function AppTabs() {
           renderingMode="template"
         />
       </NativeTabs.Trigger>
+
+      {/* Reached from the login screen, not from the tab bar. */}
+      <NativeTabs.Trigger name="register" hidden />
+      <NativeTabs.Trigger name="verify" hidden />
     </NativeTabs>
   );
 }
