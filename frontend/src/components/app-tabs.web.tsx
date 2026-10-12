@@ -22,16 +22,14 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             <TabButton>Home</TabButton>
           </TabTrigger>
-          <TabTrigger name="user" href="/user" asChild>
-            <TabButton>User</TabButton>
-          </TabTrigger>
-          <TabTrigger name="admin" href="/admin" asChild>
-            <TabButton>Admin</TabButton>
-          </TabTrigger>
           <TabTrigger name="login" href="/login" asChild>
             <TabButton>Login</TabButton>
           </TabTrigger>
-
+          {/* Not shown in the bar, but still registered so login can route to the dashboards. */}
+          <TabTrigger name="user" href="/user" style={styles.hidden} />
+          <TabTrigger name="admin" href="/admin" style={styles.hidden} />
+          <TabTrigger name="register" href="/register" style={styles.hidden} />
+          <TabTrigger name="verify" href="/verify" style={styles.hidden} />
         </CustomTabList>
       </TabList>
     </Tabs>
@@ -107,6 +105,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  hidden: {
+    display: 'none',
   },
   tabButtonView: {
     paddingVertical: Spacing.one,

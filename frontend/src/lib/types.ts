@@ -27,11 +27,36 @@ export type Account = {
   username: string;
   displayName: string;
   role: Role;
+  email?: string;
+  phone?: string;
 };
 
 export type Session = {
   token: string;
   account: Account;
+};
+
+// Where a verification code is sent: 'email' or a text message to the phone number.
+export type VerificationChannel = 'email' | 'sms';
+
+// Body of POST /auth/register. Self-registration always creates a client account.
+export type RegistrationInput = {
+  displayName: string;
+  username: string;
+  password: string;
+  email: string;
+  phone?: string;
+  channel: VerificationChannel;
+};
+
+// Returned by register and resend: the account stays pending until the code is confirmed.
+export type VerificationChallenge = {
+  verificationId: string;
+  channel: VerificationChannel;
+  destination: string; // masked, e.g. j•••@example.com or •••• 4821
+  expiresAt: string; // ISO string
+  resendAvailableAt: string; // ISO string
+  channels: VerificationChannel[]; // every channel this account can be verified through
 };
 
 export type QueueVisit = QueueEntry & {

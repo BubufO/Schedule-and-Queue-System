@@ -30,3 +30,6 @@ export const demoAccounts = accounts.map(({ username, password, role }) => ({
   password,
   role,
 }));
+
+// The dummy gateway "sends" this code for every verification instead of a real email or text.
+export const demoVerificationCode = '123456';
