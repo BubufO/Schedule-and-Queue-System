@@ -6,7 +6,7 @@ import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'reac
 
 import { AppButton, Badge, Field, Screen, TextField } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
-import { estimatedWait, serviceFromJoinLink, useQueueStore } from '@/lib/queue-store';
+import { estimatedWait, messageOf, serviceFromJoinLink, useQueueStore } from '@/lib/queue-store';
 import { Spacing } from '@/lib/theme';
 import { useTheme } from '@/lib/use-theme';
 
@@ -81,7 +81,7 @@ function LandingFooter() {
 // One-time visit without an account: paste the join link a service shares, then track it here.
 function GuestJoinCard() {
   const theme = useTheme();
-  const { services, queues, nowServing, joinAsGuest, removeEntry } = useQueueStore();
+  const { services, queues, nowServing, joinAsGuest, leaveAsGuest } = useQueueStore();
 
   const [link, setLink] = useState('');
   const [name, setName] = useState('');
@@ -94,7 +94,7 @@ function GuestJoinCard() {
   if (!name.trim()) errors.name = 'Enter a name so staff can call you.';
   const show = (field: keyof typeof errors) => (submitted ? errors[field] : undefined);
 
-  const join = () => {
+  const join = async () => {
     setSubmitted(true);
     setFailure(null);
     if (Object.keys(errors).length) return;
@@ -104,11 +104,11 @@ function GuestJoinCard() {
       return;
     }
     try {
-      const entry = joinAsGuest(service.id, name.trim());
+      const entry = await joinAsGuest(service.id, name.trim());
       setVisit({ serviceId: service.id, entryId: entry.id });
       setSubmitted(false);
     } catch (e) {
-      setFailure(e instanceof Error ? e.message : 'Unable to join queue.');
+      setFailure(messageOf(e, 'Unable to join queue.'));
     }
   };
 
@@ -152,13 +152,22 @@ function GuestJoinCard() {
             </ThemedText>
           </>
         )}
+        {failure ? (
+          <ThemedText type="small" accessibilityRole="alert" style={{ color: theme.danger }}>
+            {failure}
+          </ThemedText>
+        ) : null}
         {entry && index >= 0 ? (
           <AppButton
             label="Leave queue"
             variant="danger"
-            onPress={() => {
-              removeEntry(visit.serviceId, visit.entryId);
-              reset();
+            onPress={async () => {
+              try {
+                await leaveAsGuest(visit.serviceId, visit.entryId);
+                reset();
+              } catch (e) {
+                setFailure(messageOf(e, 'Unable to leave queue.'));
+              }
             }}
           />
         ) : null}

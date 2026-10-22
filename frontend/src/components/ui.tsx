@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ApiStatusBanner } from '@/components/api-status';
 import { ThemedText } from '@/components/themed-text';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/lib/theme';
 import type { Priority } from '@/lib/types';
@@ -52,6 +53,7 @@ export function Screen({
       keyboardShouldPersistTaps="handled">
       <View style={[styles.inner, { maxWidth }]}>
         {nav}
+        <ApiStatusBanner />
         {title ? (
           <View style={styles.header}>
             <View style={styles.headerText}>

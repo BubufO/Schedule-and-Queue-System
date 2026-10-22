@@ -4,7 +4,7 @@ import { UserNav } from '@/components/user-nav';
 import { useUserQueue, formatDate, outcomeLabels } from '@/lib/user-queue';
 export default function HistoryScreen() {
   const { history } = useUserQueue();
-  return <Screen title="History" subtitle="Past visits from this app session." nav={<UserNav />}>
+  return <Screen title="History" subtitle="Your past queue visits." nav={<UserNav />}>
     {!history.length && <Card><ThemedText>No past visits yet. Completed visits and queues you leave will appear here.</ThemedText></Card>}
     {history.map(visit => <Card key={visit.id}>
       <ThemedText type="smallBold">{visit.serviceName}</ThemedText>
