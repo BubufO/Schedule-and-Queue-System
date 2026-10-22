@@ -9,3 +9,4 @@ bcrypt
 pytest
 pytest-cov
 httpx
+uv
