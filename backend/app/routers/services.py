@@ -4,6 +4,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+from app.queueing import archive
 from app.schemas import ServiceCreate, ServiceOut, ServiceUpdate
 from app.store import ServiceRecord, Store, get_store
 
@@ -83,5 +84,9 @@ def update_service(service_id: str, body: ServiceUpdate, store: Store = Depends(
 def delete_service(service_id: str, store: Store = Depends(get_store)):
     with store.lock:
         find_service(store, service_id)
+        # Anyone still waiting or being served has their visit cancelled.
+        serving = store.now_serving.pop(service_id, None)
+        for entry in ([serving.entry] if serving else []) + store.queues.pop(service_id, []):
+            archive(store, entry, "cancelled")
         del store.services[service_id]
     return Response(status_code=status.HTTP_204_NO_CONTENT)
