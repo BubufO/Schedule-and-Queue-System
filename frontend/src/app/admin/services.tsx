@@ -19,7 +19,7 @@ import {
 } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/lib/theme';
-import { filterServices, useQueueStore, type ServiceInput } from '@/lib/queue-store';
+import { filterServices, messageOf, useQueueStore, type ServiceInput } from '@/lib/queue-store';
 import type { Priority, Service } from '@/lib/types';
 import { useTheme } from '@/lib/use-theme';
 
@@ -37,6 +37,7 @@ export default function ServicesScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const visible = filterServices(services, query);
 
   // Allow the dashboard to deep link into "new" or "edit" mode.
@@ -54,14 +55,21 @@ export default function ServicesScreen() {
 
   const editing = mode.kind === 'edit' ? services.find((s) => s.id === mode.id) : undefined;
 
-  const handleSave = (input: ServiceInput) => {
-    const saved = saveService(input, editing?.id);
+  // Errors propagate to the form, which shows the backend's message.
+  const handleSave = async (input: ServiceInput) => {
+    const saved = await saveService(input, editing?.id);
     setNotice(editing ? `Saved changes to "${saved.name}".` : `Created "${saved.name}". Its queue starts closed.`);
     setMode({ kind: 'closed' });
   };
 
-  const handleDelete = (service: Service) => {
-    deleteService(service.id);
+  const handleDelete = async (service: Service) => {
+    setDeleteError(null);
+    try {
+      await deleteService(service.id);
+    } catch (e) {
+      setDeleteError(messageOf(e));
+      return;
+    }
     setConfirmDeleteId(null);
     if (mode.kind === 'edit' && mode.id === service.id) setMode({ kind: 'closed' });
     setNotice(`Deleted "${service.name}" and its queue.`);
@@ -132,7 +140,10 @@ export default function ServicesScreen() {
                 variant="danger"
                 label="Delete"
                 accessibilityLabel={`Delete ${service.name}`}
-                onPress={() => setConfirmDeleteId(service.id)}
+                onPress={() => {
+                  setConfirmDeleteId(service.id);
+                  setDeleteError(null);
+                }}
               />
             </View>
           </View>
@@ -150,8 +161,20 @@ export default function ServicesScreen() {
                   : ''}{' '}
                 This can't be undone.
               </Text>
+              {deleteError ? (
+                <Text accessibilityRole="alert" style={[styles.confirmText, { color: theme.danger }]}>
+                  {deleteError}
+                </Text>
+              ) : null}
               <View style={styles.rowActions}>
-                <AppButton size="sm" label="Cancel" onPress={() => setConfirmDeleteId(null)} />
+                <AppButton
+                  size="sm"
+                  label="Cancel"
+                  onPress={() => {
+                    setConfirmDeleteId(null);
+                    setDeleteError(null);
+                  }}
+                />
                 <AppButton
                   size="sm"
                   variant="destructive"
@@ -174,7 +197,7 @@ function ServiceForm({
 }: {
   service?: Service;
   onCancel: () => void;
-  onSave: (input: ServiceInput) => void;
+  onSave: (input: ServiceInput) => Promise<void>;
 }) {
   const theme = useTheme();
   const [name, setName] = useState(service?.name ?? '');
@@ -182,6 +205,8 @@ function ServiceForm({
   const [duration, setDuration] = useState(service ? String(service.durationMinutes) : '');
   const [priority, setPriority] = useState<Priority>(service?.priority ?? 'medium');
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const errors: { name?: string; description?: string; duration?: string } = {};
   if (!name.trim()) errors.name = 'Service name is required.';
@@ -195,15 +220,24 @@ function ServiceForm({
   const hasErrors = Object.keys(errors).length > 0;
   const show = (field: keyof typeof errors) => (submitted ? errors[field] : undefined);
 
-  const submit = () => {
+  const submit = async () => {
     setSubmitted(true);
+    setSaveError(null);
     if (hasErrors) return;
-    onSave({
-      name: name.trim(),
-      description: description.trim(),
-      durationMinutes: durationNumber,
-      priority,
-    });
+    setSaving(true);
+    try {
+      await onSave({
+        name: name.trim(),
+        description: description.trim(),
+        durationMinutes: durationNumber,
+        priority,
+      });
+    } catch (e) {
+      // The backend re-validates everything, e.g. a name another service already uses.
+      setSaveError(messageOf(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -273,12 +307,18 @@ function ServiceForm({
           Fix the highlighted fields to save.
         </ThemedText>
       ) : null}
+      {saveError ? (
+        <ThemedText type="small" accessibilityRole="alert" style={{ color: theme.danger }}>
+          {saveError}
+        </ThemedText>
+      ) : null}
 
       <View style={styles.formActions}>
         <AppButton label="Cancel" onPress={onCancel} />
         <AppButton
-          label={service ? 'Save changes' : 'Create service'}
+          label={saving ? 'Saving…' : service ? 'Save changes' : 'Create service'}
           variant="primary"
+          disabled={saving}
           onPress={submit}
         />
       </View>

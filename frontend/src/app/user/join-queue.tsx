@@ -4,7 +4,7 @@ import { Screen, Card, AppButton, StatusBadge, SearchInput, Field, TextField } f
 import { ThemedText } from '@/components/themed-text';
 import { UserNav } from '@/components/user-nav';
 import { UserVisit } from '@/components/user-visit';
-import { filterServices, estimatedWait, serviceFromJoinLink } from '@/lib/queue-store';
+import { filterServices, estimatedWait, messageOf, serviceFromJoinLink } from '@/lib/queue-store';
 import { useUserQueue } from '@/lib/user-queue';
 export default function JoinQueueScreen() {
   const { services, queues, nowServing, joinQueue, active } = useUserQueue();
@@ -14,12 +14,12 @@ export default function JoinQueueScreen() {
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
-  const joinWithLink = () => {
+  const joinWithLink = async () => {
     setLinkError(null);
     if (!link.trim()) return setLinkError('Paste the join link you were given.');
     const service = serviceFromJoinLink(services, link);
     if (!service) return setLinkError('That join link does not match any service.');
-    try { joinQueue(service.id); setLink(''); } catch (e) { setLinkError(e instanceof Error ? e.message : 'Unable to join queue.'); }
+    try { await joinQueue(service.id); setLink(''); } catch (e) { setLinkError(messageOf(e, 'Unable to join queue.')); }
   };
   const selected = services.find(s => s.id === selectedId);
   const visible = filterServices(services, query);
@@ -47,9 +47,9 @@ export default function JoinQueueScreen() {
         <ThemedText type="smallBold">Selected: {selected.name}</ThemedText>
         {!selected.isOpen && <ThemedText>This service has closed. Choose another service.</ThemedText>}
         {error && <ThemedText accessibilityRole="alert">{error}</ThemedText>}
-        <AppButton label="Join queue" variant="primary" disabled={!selected.isOpen} onPress={() => {
+        <AppButton label="Join queue" variant="primary" disabled={!selected.isOpen} onPress={async () => {
           setError(null);
-          try { joinQueue(selected.id); } catch (e) { setError(e instanceof Error ? e.message : 'Unable to join queue.'); }
+          try { await joinQueue(selected.id); } catch (e) { setError(messageOf(e, 'Unable to join queue.')); }
         }} />
       </Card>}
       {selectedId && !selected && <Card><ThemedText>This service is no longer available. Choose another service.</ThemedText></Card>}

@@ -1,4 +1,4 @@
-// Domain model. Kept separate from mock-data so it survives the switch to a real API.
+// Domain model shared by every screen. Service and queue data comes from the FastAPI backend.
 
 export type Priority = 'low' | 'medium' | 'high';
 
@@ -18,6 +18,10 @@ export type QueueEntry = {
   name: string;
   ticket: string;
   joinedAt: string;
+  // Filled in by the backend. Waiting lists are ordered by priority, then arrival.
+  priority?: Priority;
+  position?: number;
+  estimatedWaitMinutes?: number;
 };
 
 export type Role = 'client' | 'admin';

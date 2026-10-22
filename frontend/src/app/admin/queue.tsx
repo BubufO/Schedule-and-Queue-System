@@ -1,5 +1,5 @@
 // Queue Management: view a service's queue, reorder or remove people, and serve the next person.
-// All actions are UI simulations on the in-memory store.
+// Every action calls the backend; the queue shown is the backend's, ordered by priority then arrival.
 
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -21,6 +21,7 @@ import { Spacing } from '@/lib/theme';
 import {
   estimatedWait,
   filterServices,
+  messageOf,
   statusFilterOptions,
   useQueueStore,
   type StatusFilter,
@@ -30,9 +31,24 @@ import { useTheme } from '@/lib/use-theme';
 export default function QueueScreen() {
   const theme = useTheme();
   const params = useLocalSearchParams<{ service?: string }>();
-  const { services, queues, nowServing, toggleQueue, moveEntry, removeEntry, serveNext, completeService } =
+  const { services, queues, nowServing, loaded, toggleQueue, moveEntry, removeEntry, serveNext, completeService } =
     useQueueStore();
   const [selectedId, setSelectedId] = useState(params.service ?? services[0]?.id);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Runs one backend action at a time and surfaces its error message, if any.
+  const run = async (action: () => Promise<void>) => {
+    setActionError(null);
+    setBusy(true);
+    try {
+      await action();
+    } catch (e) {
+      setActionError(messageOf(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // Follow the dashboard's "Manage queue" deep link.
   useEffect(() => {
@@ -43,7 +59,9 @@ export default function QueueScreen() {
   if (!service) {
     return (
       <Screen title="Queue Management" nav={<AdminNav />}>
-        <ThemedText themeColor="textSecondary">No services yet. Create one first.</ThemedText>
+        <ThemedText themeColor="textSecondary">
+          {loaded ? 'No services yet. Create one first.' : 'Loading queues…'}
+        </ThemedText>
       </Screen>
     );
   }
@@ -73,7 +91,8 @@ export default function QueueScreen() {
             size="sm"
             variant={service.isOpen ? 'danger' : 'primary'}
             label={service.isOpen ? 'Close queue' : 'Open queue'}
-            onPress={() => toggleQueue(service.id)}
+            disabled={busy}
+            onPress={() => run(() => toggleQueue(service.id))}
           />
         </View>
         <ThemedText type="small" themeColor="textSecondary">
@@ -105,15 +124,30 @@ export default function QueueScreen() {
               </ThemedText>
             )}
           </View>
-          {serving && <AppButton label="Complete service" variant="primary" onPress={() => completeService(service.id)} />}
+          {serving && (
+            <AppButton
+              label="Complete service"
+              disabled={busy}
+              onPress={() => run(() => completeService(service.id))}
+            />
+          )}
+          {/* Serving the next person also completes the current visit. */}
           <AppButton
             label={queue.length ? `Serve next (${queue[0].ticket})` : 'Queue empty'}
             variant="primary"
-            disabled={!queue.length || !!serving}
-            onPress={() => serveNext(service.id)}
+            disabled={!queue.length || busy}
+            onPress={() => run(() => serveNext(service.id))}
           />
         </View>
       </Card>
+
+      {actionError ? (
+        <Card style={{ backgroundColor: theme.dangerBackground }}>
+          <ThemedText type="small" accessibilityRole="alert" style={{ color: theme.danger }}>
+            {actionError}
+          </ThemedText>
+        </Card>
+      ) : null}
 
       <SectionLabel>{`Waiting (${queue.length})`}</SectionLabel>
 
@@ -130,9 +164,14 @@ export default function QueueScreen() {
               <ThemedText type="smallBold">{index + 1}</ThemedText>
             </View>
             <View style={styles.entryText}>
-              <ThemedText type="smallBold">{entry.name}</ThemedText>
+              <View style={styles.badges}>
+                <ThemedText type="smallBold">{entry.name}</ThemedText>
+                {entry.priority && entry.priority !== 'medium' ? (
+                  <PriorityBadge priority={entry.priority} />
+                ) : null}
+              </View>
               <ThemedText type="small" themeColor="textSecondary">
-                {entry.ticket} · joined {Number.isNaN(Date.parse(entry.joinedAt)) ? entry.joinedAt : new Date(entry.joinedAt).toLocaleTimeString()} · ~{estimatedWait(service, index)} min wait
+                {entry.ticket} · joined {Number.isNaN(Date.parse(entry.joinedAt)) ? entry.joinedAt : new Date(entry.joinedAt).toLocaleTimeString()} · ~{entry.estimatedWaitMinutes ?? estimatedWait(service, index)} min wait
               </ThemedText>
             </View>
             <View style={styles.entryActions}>
@@ -140,22 +179,23 @@ export default function QueueScreen() {
                 size="sm"
                 label="↑"
                 accessibilityLabel={`Move ${entry.name} up`}
-                disabled={index === 0}
-                onPress={() => moveEntry(service.id, entry.id, -1)}
+                disabled={index === 0 || busy}
+                onPress={() => run(() => moveEntry(service.id, entry.id, -1))}
               />
               <AppButton
                 size="sm"
                 label="↓"
                 accessibilityLabel={`Move ${entry.name} down`}
-                disabled={index === queue.length - 1}
-                onPress={() => moveEntry(service.id, entry.id, 1)}
+                disabled={index === queue.length - 1 || busy}
+                onPress={() => run(() => moveEntry(service.id, entry.id, 1))}
               />
               <AppButton
                 size="sm"
                 variant="danger"
                 label="Remove"
                 accessibilityLabel={`Remove ${entry.name} from queue`}
-                onPress={() => removeEntry(service.id, entry.id)}
+                disabled={busy}
+                onPress={() => run(() => removeEntry(service.id, entry.id))}
               />
             </View>
           </Card>

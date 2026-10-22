@@ -21,6 +21,7 @@ import { Spacing } from '@/lib/theme';
 import {
   estimatedWait,
   filterServices,
+  messageOf,
   statusFilterOptions,
   useQueueStore,
   type StatusFilter,
@@ -31,6 +32,7 @@ export default function DashboardScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { services, queues, toggleQueue } = useQueueStore();
+  const [toggleError, setToggleError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const visible = filterServices(services, query, status);
@@ -71,6 +73,13 @@ export default function DashboardScreen() {
       </View>
 
       <SectionLabel>{`Services (${visible.length} of ${services.length})`}</SectionLabel>
+      {toggleError ? (
+        <Card style={{ backgroundColor: theme.dangerBackground }}>
+          <ThemedText type="small" accessibilityRole="alert" style={{ color: theme.danger }}>
+            {toggleError}
+          </ThemedText>
+        </Card>
+      ) : null}
       <SearchInput value={query} onChangeText={setQuery} placeholder="Search services" />
       <FilterChips options={statusFilterOptions} value={status} onChange={setStatus} />
 
@@ -126,7 +135,14 @@ export default function DashboardScreen() {
                 size="sm"
                 variant={service.isOpen ? 'danger' : 'primary'}
                 label={service.isOpen ? 'Close queue' : 'Open queue'}
-                onPress={() => toggleQueue(service.id)}
+                onPress={async () => {
+                  setToggleError(null);
+                  try {
+                    await toggleQueue(service.id);
+                  } catch (e) {
+                    setToggleError(`${service.name}: ${messageOf(e)}`);
+                  }
+                }}
               />
               <AppButton
                 size="sm"

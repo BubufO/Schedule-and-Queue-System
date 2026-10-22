@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { AppButton, Badge, Card } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
+import { messageOf } from '@/lib/queue-store';
 import { formatDate, useUserQueue } from '@/lib/user-queue';
 export function UserVisit() {
   const { active, history, leaveQueue } = useUserQueue();
@@ -21,9 +22,9 @@ export function UserVisit() {
     <ThemedText type="small" themeColor="textSecondary">Joined: {formatDate(active.entry.joinedAt)}</ThemedText>
     {!active.service.isOpen && <ThemedText type="small">Closed to new joins. Your place is retained.</ThemedText>}
     {error && <ThemedText accessibilityRole="alert">{error}</ThemedText>}
-    {!!active.position && <AppButton label="Leave queue" variant="danger" onPress={() => {
+    {!!active.position && <AppButton label="Leave queue" variant="danger" onPress={async () => {
       setError(null);
-      try { leaveQueue(); } catch (e) { setError(e instanceof Error ? e.message : 'Unable to leave queue.'); }
+      try { await leaveQueue(); } catch (e) { setError(messageOf(e, 'Unable to leave queue.')); }
     }} />}
   </Card>;
 }
