@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.queueing import add_entry, archive, find_user_visit, wait_minutes
 from app.routers.services import find_service
-from app.notifications import forget, notify_joined, notify_left, notify_now_serving, refresh_positions #hook the triggers
+from app.notifications import forget, notify_joined, notify_left, notify_now_serving, notify_removed, refresh_positions #hook the triggers
 from app.schemas import (
     ID_MAX,
     JoinQueueRequest,
@@ -187,6 +187,7 @@ def remove_entry(service_id: str, entry_id: str, store: Store = Depends(get_stor
         store.queues[service_id].remove(entry)
         forget(store, entry.id)
         archive(store, entry, "removed")
+        notify_removed(store, service, entry)
         refresh_positions(store, service)  
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
