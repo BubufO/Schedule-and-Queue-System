@@ -1,4 +1,4 @@
-// Login: signs in with the dummy API gateway, then sends clients to the user dashboard
+// Login: signs in through the backend's Authentication module, then sends clients to the user dashboard
 // and administrators to the admin dashboard.
 
 import { useRouter } from 'expo-router';
@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { AppButton, Badge, Card, Field, Screen, TextField } from '@/components/ui';
-import { ApiError } from '@/lib/api/gateway';
+import { ApiError } from '@/lib/api/client';
 import { homeForRole, roleLabel, useAuth } from '@/lib/auth-store';
 import { Spacing } from '@/lib/theme';
 import { useTheme } from '@/lib/use-theme';

@@ -7,8 +7,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { AppButton, Badge, Card, Field, Screen, TextField } from '@/components/ui';
-import { demoVerificationCode } from '@/lib/api/accounts';
-import { ApiError } from '@/lib/api/gateway';
+import { demoVerificationCode } from '@/lib/api/auth';
+import { ApiError } from '@/lib/api/client';
 import { channelLabel, homeForRole, useAuth } from '@/lib/auth-store';
 import { Spacing } from '@/lib/theme';
 import type { VerificationChannel } from '@/lib/types';

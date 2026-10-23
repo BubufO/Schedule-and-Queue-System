@@ -1,4 +1,7 @@
-"""Service Management module: create, update, list, and delete services."""
+"""Service Management module: create, update, list, and delete services.
+
+Anyone can list services; only administrators can change them.
+"""
 
 import re
 
@@ -6,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.queueing import archive
 from app.schemas import ServiceCreate, ServiceOut, ServiceUpdate
+from app.security import require_admin
 from app.store import ServiceRecord, Store, get_store
 
 router = APIRouter(prefix="/services", tags=["services"])
@@ -50,7 +54,8 @@ def get_service(service_id: str, store: Store = Depends(get_store)):
     return find_service(store, service_id)
 
 
-@router.post("", response_model=ServiceOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ServiceOut, status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(require_admin)])
 def create_service(body: ServiceCreate, store: Store = Depends(get_store)):
     with store.lock:
         _ensure_name_available(store, body.name)
@@ -68,7 +73,7 @@ def create_service(body: ServiceCreate, store: Store = Depends(get_store)):
         return service
 
 
-@router.patch("/{service_id}", response_model=ServiceOut)
+@router.patch("/{service_id}", response_model=ServiceOut, dependencies=[Depends(require_admin)])
 def update_service(service_id: str, body: ServiceUpdate, store: Store = Depends(get_store)):
     with store.lock:
         service = find_service(store, service_id)
@@ -80,7 +85,7 @@ def update_service(service_id: str, body: ServiceUpdate, store: Store = Depends(
         return service
 
 
-@router.delete("/{service_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{service_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 def delete_service(service_id: str, store: Store = Depends(get_store)):
     with store.lock:
         find_service(store, service_id)

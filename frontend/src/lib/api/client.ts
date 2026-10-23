@@ -1,13 +1,29 @@
 // HTTP client for the FastAPI backend in /backend.
 //
-// Every service and queue call goes through apiFetch(), which turns the backend's error
-// responses into an ApiError with a message that can be shown to the user as is.
+// Every call goes through apiFetch(), which sends the signed-in user's token and turns the
+// backend's error responses into an ApiError with a message that can be shown to the user as is.
 
-import { ApiError } from '@/lib/api/gateway';
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
 
 // Where the backend runs. Set EXPO_PUBLIC_API_URL in frontend/.env to override it, for example
 // with your computer's network address when testing on a phone, where "localhost" is the phone.
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
+
+// The session token, sent as a bearer token on every request. auth-store.tsx keeps it in step
+// with the session, so callers never pass it themselves.
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
 
 type ErrorBody = {
   detail?: unknown;
@@ -34,9 +50,12 @@ export async function apiFetch<T>(
 ): Promise<T> {
   let response: Response;
   try {
+    const headers: Record<string, string> = {};
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
     response = await fetch(`${API_URL}${path}`, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
