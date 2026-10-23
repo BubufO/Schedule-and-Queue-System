@@ -6,7 +6,7 @@ import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'reac
 
 import { AppButton, Badge, Field, Screen, TextField } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
-import { estimatedWait, messageOf, serviceFromJoinLink, useQueueStore } from '@/lib/queue-store';
+import { messageOf, serviceFromJoinLink, useQueueStore } from '@/lib/queue-store';
 import { Spacing } from '@/lib/theme';
 import { useTheme } from '@/lib/use-theme';
 
@@ -148,7 +148,7 @@ function GuestJoinCard() {
             <ThemedText accessibilityLiveRegion="polite">
               {index < 0
                 ? "It's your turn. Please report to staff."
-                : `Position ${index + 1} · about ${estimatedWait(service!, index + (serving ? 1 : 0))} min`}
+                : `Position ${entry.position ?? index + 1} · about ${entry.estimatedWaitMinutes ?? 0} min`}
             </ThemedText>
           </>
         )}

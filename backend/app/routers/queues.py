@@ -10,7 +10,7 @@ session; guests who joined with a link act by entryId and need no session.
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from app.queueing import add_entry, archive, find_user_visit, wait_minutes
+from app.queueing import add_entry, archive, find_user_visit, join_wait_minutes, wait_minutes
 from app.routers.services import find_service
 from app.notifications import forget, notify_joined, notify_left, notify_now_serving, notify_removed, refresh_positions #hook the triggers
 from app.schemas import (
@@ -68,7 +68,7 @@ def _queue_out(store: Store, service: ServiceRecord) -> QueueOut:
         is_open=service.is_open,
         waiting=[_waiting_out(store, service, i, e) for i, e in enumerate(queue)],
         now_serving=_serving_out(store.now_serving.get(service.id)),
-        estimated_wait_minutes=wait_minutes(store, service, len(queue)),
+        estimated_wait_minutes=join_wait_minutes(store, service),
     )
 
 

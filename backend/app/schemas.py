@@ -147,7 +147,7 @@ class QueueOut(ApiModel):
     is_open: bool
     waiting: list[WaitingEntryOut]
     now_serving: ServingOut | None
-    # How long someone joining now would wait.
+    # How long a default (medium-priority) arrival joining now would wait.
     estimated_wait_minutes: int
 
 

@@ -47,6 +47,7 @@ type VisitDto = EntryDto & {
 
 export type QueueSnapshot = {
   serviceId: string;
+  estimatedWaitMinutes: number;
   waiting: QueueEntry[];
   nowServing: { entry: QueueEntry; startedAt: string } | null;
 };
@@ -78,6 +79,7 @@ function toVisit(dto: VisitDto): QueueVisit {
 function toSnapshot(dto: QueueDto): QueueSnapshot {
   return {
     serviceId: dto.serviceId,
+    estimatedWaitMinutes: dto.estimatedWaitMinutes,
     waiting: dto.waiting.map(toEntry),
     nowServing: dto.nowServing
       ? { entry: toEntry(dto.nowServing.entry), startedAt: dto.nowServing.startedAt }
