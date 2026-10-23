@@ -1,5 +1,5 @@
-// Account field rules. The register screen uses them for inline errors, and the dummy gateway
-// re-checks them the way the real backend's request models will, so a bypassed form still fails.
+// Account field rules. The register screen uses them for inline errors, and the backend's
+// RegisterRequest (backend/app/schemas.py) re-checks the same rules, so a bypassed form still fails.
 // Each returns an error message, or undefined when the value is acceptable.
 
 export const PasswordMinLength = 8;
