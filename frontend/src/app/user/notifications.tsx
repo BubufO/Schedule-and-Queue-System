@@ -3,7 +3,6 @@ import { Screen, Card, SectionLabel } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { UserNav } from '@/components/user-nav';
 import { useUserQueue } from '@/lib/user-queue';
-import { generateMockNotifications } from '@/lib/mock-notifications';
 
 type RawNotification = any;
 
@@ -69,18 +68,7 @@ function normalize(raw: RawNotification) {
 export default function UserNotificationsScreen() {
   const { notifications: baseNotifications, active, history } = useUserQueue();
 
-  // dev-only: generate mocks from current queue state; keep production unchanged
-  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
-  const mockNotifications = isDev ? generateMockNotifications(active, history) : [];
-
-  // If you also want a targeted developer user, handle that here (not inside the hook)
-  const devUserName = 'Jordan Reyes';
-  const jordanMocks = isDev && (baseNotifications as any[]).length && (typeof (global as any).__TEST_JORDAN__ !== 'undefined' || false) ? [] : [];
-  // (Optionally create targeted mocks here if you need — keep them in the UI layer)
-
-  const combined = [...mockNotifications, ...(baseNotifications ?? [])];
-
-  const items = combined.map(normalize);
+  const items = (baseNotifications ?? []).map(normalize);
 
   return (
     <Screen title="Notifications" subtitle="Recent messages" nav={<UserNav />}>

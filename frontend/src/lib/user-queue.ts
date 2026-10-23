@@ -1,6 +1,5 @@
 import { useAuth } from '@/lib/auth-store';
 import { useQueueStore } from '@/lib/queue-store';
-import { generateMockNotifications } from '@/lib/mock-notifications';
 
 export const outcomeLabels = { served: 'Served', left: 'Left queue', removed: 'Removed by staff', cancelled: 'Service cancelled' };
 
@@ -24,21 +23,11 @@ export function useUserQueue() {
     return [{ service, entry: store.queues[service.id][index], position: index + 1, wait, status: index === 0 ? 'Almost ready' : 'Waiting' }];
   })[0] : undefined;
 
-  // Generate structured notifications from active queue or history
-  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
-  const mockNotifications = isDev ? generateMockNotifications(active, history) : [];
-
-  // Keep backward-compatible string notifications for non-dev displays
-  const stringNotifications = active ? [
-    active.status === 'Your turn' ? `Your turn at ${active.service.name}. Please report to staff.` : active.status === 'Almost ready' ? `You are next in line at ${active.service.name}.` : `You are number ${active.position} at ${active.service.name}.`,
-    ...(!active.service.isOpen ? ['This queue is closed to new joins. Your existing place is retained.'] : []),
-  ] : history[0] ? [`${history[0].serviceName}: ${outcomeLabels[history[0].outcome]}.`] : [];
-
   return { 
     ...store, 
     session, 
     active, 
     history, 
-    notifications: mockNotifications.length > 0 ? mockNotifications : stringNotifications,
+    notifications: store.notifications,
   };
 }

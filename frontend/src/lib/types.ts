@@ -81,4 +81,5 @@ export type Notification = {
   serviceId?: string;
   oldPosition?: number;
   newPosition?: number;
+    read: boolean;
 };
