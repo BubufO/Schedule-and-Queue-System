@@ -144,3 +144,16 @@ class VisitOut(QueueEntryOut):
     service_name: str
     ended_at: datetime
     outcome: Literal["served", "left", "removed", "cancelled"]
+
+#---- Notifications -------------------------------------------------------------------------
+class NotificationOut(ApiModel):
+    id: str
+    user_id: str
+    type: Literal["joined", "update", "turn", "service"]
+    title: str
+    message: str
+    timestamp: datetime
+    service_id: str | None
+    old_position: int | None
+    new_position: int | None
+    read: bool
