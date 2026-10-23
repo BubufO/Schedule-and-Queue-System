@@ -13,6 +13,7 @@ import {
   resendVerification as apiResendVerification,
   verify as apiVerify,
 } from '@/lib/api/auth';
+import { setAuthToken } from '@/lib/api/client';
 import type {
   RegistrationInput,
   Role,
@@ -41,19 +42,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     null,
   );
 
+  // The token goes to the API client before the session is published, so the queue store's
+  // refresh on the new session already sends it.
+  const startSession = (next: Session | null) => {
+    setAuthToken(next?.token ?? null);
+    setSession(next);
+  };
+
   // Rejects with an ApiError the caller shows to the user; the session only changes on success.
   const signIn = async (username: string, password: string) => {
     const next = await apiLogin(username, password);
-    setSession(next);
+    startSession(next);
     return next;
   };
 
-  // Clears locally even if the gateway rejects the call, so a stale token can't strand anyone.
+  // Clears locally even if the backend rejects the call, so a stale token can't strand anyone.
   const signOut = async () => {
     try {
-      if (session) await apiLogout(session.token);
+      if (session) await apiLogout();
     } finally {
-      setSession(null);
+      startSession(null);
     }
   };
 
@@ -68,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!pendingVerification) throw new Error('No registration is waiting for a code.');
     const next = await apiVerify(pendingVerification.verificationId, code);
     setPendingVerification(null);
-    setSession(next);
+    startSession(next);
     return next;
   };
 

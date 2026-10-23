@@ -1,7 +1,8 @@
 """In-memory data store for QueueSmart.
 
-Stands in for a real database in this assignment. Everything lives in process memory, so
-restarting the server resets all services and queues back to the seed data below.
+Stands in for a real database. Everything lives in process memory, so
+restarting the server resets all accounts, sessions, services and queues back to the seed
+data below.
 """
 
 from dataclasses import dataclass
@@ -62,7 +63,46 @@ class NotificationRecord:
     read: bool = False
 
 
-# Seed services, matching the ones the frontend was built against.
+@dataclass
+class UserRecord:
+    id: str
+    username: str  # stored lowercase; usernames are unique ignoring case
+    password_hash: str
+    display_name: str
+    role: str  # client | admin
+    email: str | None = None
+    phone: str | None = None
+
+
+@dataclass
+class SessionRecord:
+    token: str
+    user_id: str
+    expires_at: datetime
+
+
+@dataclass
+class PendingRegistrationRecord:
+    """A registration waiting for its code. Becomes a UserRecord once verified."""
+
+    id: str
+    user: UserRecord
+    channel: str  # email | sms
+    code: str
+    expires_at: datetime
+    resend_available_at: datetime
+    attempts_left: int
+
+
+# Seed accounts: (id, username, password, display name, role). Same as the logins shown on
+# the frontend's login screen. Self-registration only ever creates client accounts.
+SEED_USERS: list[tuple[str, str, str, str, str]] = [
+    ("usr-admin", "admin", "password", "Reception Admin", "admin"),
+    ("usr-client", "user", "password", "Jordan Reyes", "client"),
+]
+
+
+# Seed services, Same as frontend. 
 SEED_SERVICES: list[tuple[str, str, str, int, str, bool, str]] = [
     ("advising", "Academic Advising", "Meet with an advisor about degree plans, course selection, and graduation checks.", 20, "high", True, "A"),
     ("financial-aid", "Financial Aid", "Questions about FAFSA, scholarships, award letters, and disbursements.", 15, "high", True, "F"),
@@ -129,12 +169,21 @@ class Store:
         self.notifications: list[NotificationRecord] = []   # newest first
         self.last_position: dict[str, int] = {}              # entry id -> last position we told them about
         self.approaching_notified: set[str] = set()          # entry ids already warned they're close
+        # Accounts by id, signed-in sessions by token, and registrations awaiting a code.
+        self.users: dict[str, UserRecord] = {}
+        self.sessions: dict[str, SessionRecord] = {}
+        self.pending_registrations: dict[str, PendingRegistrationRecord] = {}
         # Shared counter for entry ids and ticket numbers.
         self.sequence = 100
         if seed:
             self._seed()
 
     def _seed(self) -> None:
+        from app.security import hash_password  # imported here to avoid a circular import
+
+        for id_, username, password, display_name, role in SEED_USERS:
+            self.users[id_] = UserRecord(id_, username, hash_password(password), display_name, role)
+
         for id_, name, description, duration, priority, is_open, prefix in SEED_SERVICES:
             self.services[id_] = ServiceRecord(id_, name, description, duration, priority, is_open, prefix)
             self.queues[id_] = []
@@ -155,6 +204,10 @@ class Store:
     def next_sequence(self) -> int:
         self.sequence += 1
         return self.sequence
+
+    def find_user_by_username(self, username: str) -> UserRecord | None:
+        username = username.lower()
+        return next((u for u in self.users.values() if u.username == username), None)
 
 
 _store: Store | None = None

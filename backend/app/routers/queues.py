@@ -3,6 +3,9 @@
 Users join and leave a service's queue. Administrators view the queue, serve the next
 person, and can remove or reorder people. Waiting lists are kept in serving order: priority
 first, then arrival (see app.queueing).
+
+Administrator actions need an admin session. Anything done for a userId needs that user's own
+session; guests who joined with a link act by entryId and need no session.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -21,7 +24,17 @@ from app.schemas import (
     VisitOut,
     WaitingEntryOut,
 )
-from app.store import QueueEntryRecord, ServiceRecord, ServingRecord, Store, VisitRecord, get_store, utc_now
+from app.security import current_user, ensure_self, require_admin
+from app.store import (
+    QueueEntryRecord,
+    ServiceRecord,
+    ServingRecord,
+    Store,
+    UserRecord,
+    VisitRecord,
+    get_store,
+    utc_now,
+)
 
 router = APIRouter(prefix="/queues", tags=["queues"])
 
@@ -88,9 +101,11 @@ def list_queues(store: Store = Depends(get_store)):
 @router.get("/history", response_model=list[VisitOut])
 def visit_history(
     user_id: str = Query(alias="userId", min_length=1, max_length=ID_MAX),
+    user: UserRecord | None = Depends(current_user),
     store: Store = Depends(get_store),
 ):
     """A user's finished visits, newest first."""
+    ensure_self(user, user_id)
     with store.lock:
         return [_visit_out(v) for v in store.history if v.entry.user_id == user_id]
 
@@ -105,7 +120,14 @@ def view_queue(service_id: str, store: Store = Depends(get_store)):
 
 
 @router.post("/{service_id}/join", response_model=WaitingEntryOut, status_code=status.HTTP_201_CREATED)
-def join_queue(service_id: str, body: JoinQueueRequest, store: Store = Depends(get_store)):
+def join_queue(
+    service_id: str,
+    body: JoinQueueRequest,
+    user: UserRecord | None = Depends(current_user),
+    store: Store = Depends(get_store),
+):
+    if body.user_id is not None:
+        ensure_self(user, body.user_id)
     with store.lock:
         service = find_service(store, service_id)
         if not service.is_open:
@@ -120,7 +142,14 @@ def join_queue(service_id: str, body: JoinQueueRequest, store: Store = Depends(g
 
 
 @router.post("/{service_id}/leave", response_model=VisitOut)
-def leave_queue(service_id: str, body: LeaveQueueRequest, store: Store = Depends(get_store)):
+def leave_queue(
+    service_id: str,
+    body: LeaveQueueRequest,
+    user: UserRecord | None = Depends(current_user),
+    store: Store = Depends(get_store),
+):
+    if body.user_id is not None:
+        ensure_self(user, body.user_id)
     with store.lock:
         service = find_service(store, service_id)
         serving = store.now_serving.get(service_id)
@@ -148,7 +177,7 @@ def leave_queue(service_id: str, body: LeaveQueueRequest, store: Store = Depends
 # ---- administrators -------------------------------------------------------------------
 
 
-@router.post("/{service_id}/serve-next", response_model=ServingOut)
+@router.post("/{service_id}/serve-next", response_model=ServingOut, dependencies=[Depends(require_admin)])
 def serve_next(service_id: str, store: Store = Depends(get_store)):
     """Finish the current visit, if any, and call the person at the front of the line."""
     with store.lock:
@@ -167,7 +196,7 @@ def serve_next(service_id: str, store: Store = Depends(get_store)):
         return _serving_out(serving)
 
 
-@router.post("/{service_id}/complete", response_model=VisitOut)
+@router.post("/{service_id}/complete", response_model=VisitOut, dependencies=[Depends(require_admin)])
 def complete_current(service_id: str, store: Store = Depends(get_store)):
     """Mark the person being served as done without calling anyone else."""
     with store.lock:
@@ -179,7 +208,7 @@ def complete_current(service_id: str, store: Store = Depends(get_store)):
         return _visit_out(store.history[0])
 
 
-@router.delete("/{service_id}/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{service_id}/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 def remove_entry(service_id: str, entry_id: str, store: Store = Depends(get_store)):
     with store.lock:
         service = find_service(store, service_id)
@@ -192,7 +221,7 @@ def remove_entry(service_id: str, entry_id: str, store: Store = Depends(get_stor
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{service_id}/entries/{entry_id}/move", response_model=QueueOut)
+@router.post("/{service_id}/entries/{entry_id}/move", response_model=QueueOut, dependencies=[Depends(require_admin)])
 def move_entry(service_id: str, entry_id: str, body: MoveEntryRequest, store: Store = Depends(get_store)):
     """Manual override: swap someone with the person directly ahead of or behind them."""
     with store.lock:

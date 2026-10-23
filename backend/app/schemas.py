@@ -7,10 +7,21 @@ The API speaks camelCase JSON (durationMinutes, isOpen) to match the frontend, w
 Python side uses snake_case.
 """
 
+import re
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    StrictStr,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 from pydantic.alias_generators import to_camel
 
 # Limits shared with the frontend's service form.
@@ -144,6 +155,153 @@ class VisitOut(QueueEntryOut):
     service_name: str
     ended_at: datetime
     outcome: Literal["served", "left", "removed", "cancelled"]
+
+# ---- Authentication -----------------------------------------------------------------------
+
+# Same rules as the register screen (frontend/src/lib/validation.ts), so a request that skips
+# the form still gets the same answer.
+DISPLAY_NAME_MAX = 60
+USERNAME_MIN = 3
+USERNAME_MAX = 32
+PASSWORD_MIN = 8
+PASSWORD_MAX = 128
+EMAIL_MAX = 254
+PHONE_DIGITS_MIN = 10
+PHONE_DIGITS_MAX = 15
+VERIFICATION_CODE_LENGTH = 6
+
+USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
+EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+Role = Literal["client", "admin"]
+VerificationChannel = Literal["email", "sms"]
+
+DisplayName = Annotated[StrictStr, Field(min_length=1, max_length=DISPLAY_NAME_MAX)]
+# Passwords are never trimmed: leading or trailing spaces are part of the password.
+Password = Annotated[StrictStr, StringConstraints(strip_whitespace=False, max_length=PASSWORD_MAX)]
+
+
+def normalize_phone(value: str) -> str:
+    """Keeps digits and a leading +, so "(555) 012-3456" and "555.012.3456" compare equal."""
+    digits = re.sub(r"\D", "", value)
+    return f"+{digits}" if value.strip().startswith("+") and digits else digits
+
+
+class LoginRequest(RequestModel):
+    username: Annotated[StrictStr, Field(min_length=1, max_length=USERNAME_MAX)]
+    password: Password
+
+    @field_validator("username")
+    @classmethod
+    def lowercase(cls, value: str) -> str:
+        return value.lower()
+
+    @field_validator("password")
+    @classmethod
+    def present(cls, value: str) -> str:
+        if not value:
+            raise ValueError("This field is required.")
+        return value
+
+
+class RegisterRequest(RequestModel):
+    """Self-registration. Always creates a client account; admins are not self-registered."""
+
+    display_name: DisplayName
+    username: StrictStr
+    password: Password
+    email: Annotated[StrictStr, Field(max_length=EMAIL_MAX)]
+    # Optional unless the code should be sent by text.
+    phone: StrictStr | None = None
+    channel: VerificationChannel = "email"
+
+    @field_validator("username")
+    @classmethod
+    def valid_username(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Choose a username.")
+        if not USERNAME_MIN <= len(value) <= USERNAME_MAX:
+            raise ValueError(f"Use {USERNAME_MIN} to {USERNAME_MAX} characters.")
+        if not USERNAME_PATTERN.match(value):
+            raise ValueError("Use letters, numbers, dots, dashes or underscores.")
+        return value.lower()
+
+    @field_validator("password")
+    @classmethod
+    def strong_password(cls, value: str) -> str:
+        if len(value) < PASSWORD_MIN:
+            raise ValueError(f"Use at least {PASSWORD_MIN} characters.")
+        if not re.search(r"[a-zA-Z]", value) or not re.search(r"[0-9]", value):
+            raise ValueError("Include at least one letter and one number.")
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def valid_email(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Enter your email address.")
+        if not EMAIL_PATTERN.match(value):
+            raise ValueError("Enter a valid email address.")
+        return value.lower()
+
+    @field_validator("phone")
+    @classmethod
+    def valid_phone(cls, value: str | None) -> str | None:
+        phone = normalize_phone(value or "")
+        if not phone:
+            return None
+        if not PHONE_DIGITS_MIN <= len(phone.lstrip("+")) <= PHONE_DIGITS_MAX:
+            raise ValueError("Enter a valid phone number, including area code.")
+        return phone
+
+    @model_validator(mode="after")
+    def phone_for_sms(self):
+        if self.channel == "sms" and not self.phone:
+            raise ValueError("Enter a phone number to receive a text.")
+        return self
+
+
+class VerifyRequest(RequestModel):
+    verification_id: Identifier
+    code: StrictStr
+
+    @field_validator("code")
+    @classmethod
+    def six_digits(cls, value: str) -> str:
+        if not (len(value) == VERIFICATION_CODE_LENGTH and value.isdigit()):
+            raise ValueError(f"Enter the {VERIFICATION_CODE_LENGTH}-digit code.")
+        return value
+
+
+class ResendVerificationRequest(RequestModel):
+    verification_id: Identifier
+    # Leave out to resend through the same channel as last time.
+    channel: VerificationChannel | None = None
+
+
+class AccountOut(ApiModel):
+    id: str
+    username: str
+    display_name: str
+    role: Role
+    email: str | None = None
+    phone: str | None = None
+
+
+class SessionOut(ApiModel):
+    token: str
+    expires_at: datetime
+    account: AccountOut
+
+
+class VerificationChallengeOut(ApiModel):
+    verification_id: str
+    channel: VerificationChannel
+    destination: str  # masked, e.g. j•••@example.com or •••• 4821
+    expires_at: datetime
+    resend_available_at: datetime
+    channels: list[VerificationChannel]  # every channel this account can be verified through
+
 
 #---- Notifications -------------------------------------------------------------------------
 class NotificationOut(ApiModel):

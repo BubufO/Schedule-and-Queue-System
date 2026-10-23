@@ -1,4 +1,4 @@
-// Register: creates a pending client account through the dummy API gateway, then hands off
+// Register: creates a pending client account through the backend's Authentication module, then hands off
 // to the verify screen, which confirms the code sent by email or text and signs the user in.
 
 import { useRouter } from 'expo-router';
@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { AppButton, Card, Field, FilterChips, Screen, TextField } from '@/components/ui';
-import { ApiError } from '@/lib/api/gateway';
+import { ApiError } from '@/lib/api/client';
 import { channelLabel, homeForRole, useAuth } from '@/lib/auth-store';
 import { Spacing } from '@/lib/theme';
 import type { VerificationChannel } from '@/lib/types';
