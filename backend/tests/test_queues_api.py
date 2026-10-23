@@ -4,7 +4,8 @@ import pytest
 
 
 def join(client, name="Alice", **fields):
-    response = client.post("/queues/advising/join", json={"name": name, **fields})
+    headers = client.headers_for(fields["userId"]) if fields.get("userId") else {}
+    response = client.post("/queues/advising/join", json={"name": name, **fields}, headers=headers)
     assert response.status_code == 201
     return response.json()
 
@@ -40,7 +41,7 @@ def test_user_cannot_hold_two_visits_even_at_another_service(client, service, be
     created = client.post("/services", json={"name": "Other", "description": "Other", "durationMinutes": 5}).json()
     client.patch(f"/services/{created['id']}", json={"isOpen": True})
     for service_id in ["advising", created["id"]]:
-        response = client.post(f"/queues/{service_id}/join", json={"name": "Alice", "userId": "alice"})
+        response = client.post(f"/queues/{service_id}/join", json={"name": "Alice", "userId": "alice"}, headers=client.headers_for("alice"))
         assert response.status_code == 409
 
 
@@ -49,7 +50,7 @@ def test_leave_removes_entry_updates_wait_and_records_history(client, service, g
     entry = join(client, **({} if guest else {"userId": "alice"}))
     join(client, "Bob")
     identifier = {"entryId": entry["id"]} if guest else {"userId": "alice"}
-    response = client.post("/queues/advising/leave", json=identifier)
+    response = client.post("/queues/advising/leave", json=identifier, headers=client.headers_for("alice"))
     assert response.status_code == 200
     assert response.json()["id"] == entry["id"]
     assert response.json()["outcome"] == "left"
@@ -57,7 +58,7 @@ def test_leave_removes_entry_updates_wait_and_records_history(client, service, g
     assert len(waiting) == 1
     assert waiting[0]["name"] == "Bob"
     assert waiting[0]["estimatedWaitMinutes"] == 0
-    assert client.post("/queues/advising/leave", json=identifier).status_code == 404
+    assert client.post("/queues/advising/leave", json=identifier, headers=client.headers_for("alice")).status_code == 404
     if not guest:
         join(client, userId="alice")  # A finished visit must not prevent rejoining.
 
@@ -67,7 +68,7 @@ def test_serving_visitor_cannot_leave(client, service, guest):
     entry = join(client, **({} if guest else {"userId": "alice"}))
     client.post("/queues/advising/serve-next")
     identifier = {"entryId": entry["id"]} if guest else {"userId": "alice"}
-    assert client.post("/queues/advising/leave", json=identifier).status_code == 409
+    assert client.post("/queues/advising/leave", json=identifier, headers=client.headers_for("alice")).status_code == 409
     assert client.get("/queues/advising").json()["nowServing"]["entry"]["id"] == entry["id"]
 
 
@@ -85,12 +86,12 @@ def test_serve_next_and_complete_archive_history_newest_first(client, service):
     assert completed.status_code == 200
     assert completed.json()["outcome"] == "served"
     assert client.get("/queues/advising").json()["nowServing"] is None
-    history = client.get("/queues/history", params={"userId": "alice"}).json()
+    history = client.get("/queues/history", params={"userId": "alice"}, headers=client.headers_for("alice")).json()
     assert [v["id"] for v in history] == [alice["id"]]
     join(client, userId="alice")
-    client.post("/queues/advising/leave", json={"userId": "alice"})
-    assert [v["outcome"] for v in client.get("/queues/history", params={"userId": "alice"}).json()] == ["left", "served"]
-    assert client.get("/queues/history", params={"userId": "unknown"}).json() == []
+    client.post("/queues/advising/leave", json={"userId": "alice"}, headers=client.headers_for("alice"))
+    assert [v["outcome"] for v in client.get("/queues/history", params={"userId": "alice"}, headers=client.headers_for("alice")).json()] == ["left", "served"]
+    assert client.get("/queues/history", params={"userId": "unknown"}, headers=client.headers_for("unknown")).json() == []
 
 
 def test_empty_serve_next_does_not_discard_current_visit(client, service):
@@ -109,7 +110,7 @@ def test_remove_waiting_entry_records_removed_history(client, service):
     assert response.status_code == 204
     assert response.content == b""
     assert client.get("/queues/advising").json()["waiting"] == []
-    assert client.get("/queues/history", params={"userId": "alice"}).json()[0]["outcome"] == "removed"
+    assert client.get("/queues/history", params={"userId": "alice"}, headers=client.headers_for("alice")).json()[0]["outcome"] == "removed"
     assert client.delete(path).status_code == 404
 
 
@@ -137,6 +138,8 @@ def test_move_entry_up_down_and_reject_boundaries(client, service):
 ])
 def test_unknown_queue_returns_404(client, method, suffix, body):
     kwargs = {"json": body} if body is not None else {}
+    if body and "userId" in body:
+        kwargs["headers"] = client.headers_for(body["userId"])
     assert getattr(client, method)(f"/queues/missing{suffix}", **kwargs).status_code == 404
 
 
@@ -148,7 +151,7 @@ def test_history_requires_valid_user_id(client, query):
 def test_invalid_join_and_leave_do_not_mutate_queue(client, service):
     assert client.post("/queues/advising/join", json={"name": " "}).status_code == 422
     entry = join(client, userId="alice")
-    assert client.post("/queues/advising/leave", json={"userId": "alice", "entryId": entry["id"]}).status_code == 422
+    assert client.post("/queues/advising/leave", json={"userId": "alice", "entryId": entry["id"]}, headers=client.headers_for("alice")).status_code == 422
     assert [e["id"] for e in client.get("/queues/advising").json()["waiting"]] == [entry["id"]]
 
 

@@ -21,6 +21,7 @@ const PollIntervalMs = 5000;
 type Data = {
   services: Service[];
   queues: Record<string, QueueEntry[]>;
+  joinWaitMinutes: Record<string, number>;
   nowServing: Record<string, NowServing | undefined>;
   history: QueueVisit[];
   notifications: Notification[];
@@ -48,7 +49,7 @@ type QueueStore = Data & {
 
 const QueueStoreContext = createContext<QueueStore | null>(null);
 
-const empty: Data = { services: [], queues: {}, nowServing: {}, history: [], notifications: [] };
+const empty: Data = { services: [], queues: {}, joinWaitMinutes: {}, nowServing: {}, history: [], notifications: [] };
 
 export function QueueStoreProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
@@ -72,6 +73,7 @@ export function QueueStoreProvider({ children }: { children: ReactNode }) {
       setData({
         services,
         queues: Object.fromEntries(queues.map((q) => [q.serviceId, q.waiting])),
+        joinWaitMinutes: Object.fromEntries(queues.map((q) => [q.serviceId, q.estimatedWaitMinutes])),
         nowServing: Object.fromEntries(
           queues.flatMap((q) => (q.nowServing ? [[q.serviceId, q.nowServing]] : [])),
         ),

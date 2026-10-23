@@ -71,6 +71,17 @@ def archive(store: Store, entry: QueueEntryRecord, outcome: str) -> None:
 
 
 def wait_minutes(store: Store, service: ServiceRecord, people_ahead: int) -> int:
-    """Rough wait: one visit length for each person ahead, plus whoever is being served."""
+    """Estimated minutes until service starts, using the current ordered position.
+
+    Position 1 has zero waiting people ahead. Count an active visit as one full
+    duration; this intentionally does not promise a countdown or infer progress.
+    Recomputed from live state after joins, departures, reordering, and duration edits.
+    """
     serving = 1 if service.id in store.now_serving else 0
     return service.duration_minutes * (people_ahead + serving)
+
+
+def join_wait_minutes(store: Store, service: ServiceRecord, priority: str = "medium") -> int:
+    """Estimate a new arrival's wait at their priority's actual insertion position."""
+    queue = store.queues.get(service.id, [])
+    return wait_minutes(store, service, insert_index(queue, priority))

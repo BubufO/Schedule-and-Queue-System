@@ -4,10 +4,10 @@ import { Screen, Card, AppButton, StatusBadge, SearchInput, Field, TextField } f
 import { ThemedText } from '@/components/themed-text';
 import { UserNav } from '@/components/user-nav';
 import { UserVisit } from '@/components/user-visit';
-import { filterServices, estimatedWait, messageOf, serviceFromJoinLink } from '@/lib/queue-store';
+import { filterServices, messageOf, serviceFromJoinLink } from '@/lib/queue-store';
 import { useUserQueue } from '@/lib/user-queue';
 export default function JoinQueueScreen() {
-  const { services, queues, nowServing, joinQueue, active } = useUserQueue();
+  const { services, queues, joinWaitMinutes, joinQueue, active } = useUserQueue();
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export default function JoinQueueScreen() {
         <ThemedText type="small" themeColor="textSecondary">{service.description}</ThemedText>
         <StatusBadge isOpen={service.isOpen} />
         <ThemedText>{queues[service.id]?.length ?? 0} people waiting</ThemedText>
-        {service.isOpen && <ThemedText>Estimated wait: {estimatedWait(service, (queues[service.id]?.length ?? 0) + (nowServing[service.id] ? 1 : 0))} min</ThemedText>}
+        {service.isOpen && <ThemedText>Estimated wait: {joinWaitMinutes[service.id] ?? 0} min</ThemedText>}
         <AppButton label={!service.isOpen ? 'Currently closed' : service.id === selectedId ? 'Selected' : 'Select service'} disabled={!service.isOpen} onPress={() => { setSelectedId(service.id); setError(null); }} />
       </Card>)}
       {selected && <Card highlighted>

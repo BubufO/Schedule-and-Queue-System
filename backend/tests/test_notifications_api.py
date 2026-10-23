@@ -4,13 +4,14 @@ import pytest
 
 
 def join(client, name, **fields):
-    response = client.post("/queues/advising/join", json={"name": name, **fields})
+    headers = client.headers_for(fields["userId"]) if fields.get("userId") else {}
+    response = client.post("/queues/advising/join", json={"name": name, **fields}, headers=headers)
     assert response.status_code == 201
     return response.json()
 
 
 def inbox(client, user="alice", **params):
-    response = client.get("/notifications", params={"userId": user, **params})
+    response = client.get("/notifications", params={"userId": user, **params}, headers=client.headers_for(user))
     assert response.status_code == 200
     return response.json()
 
@@ -28,20 +29,20 @@ def test_join_inbox_serialization_read_filtering_and_clear_are_user_scoped(clien
     assert alice[0]["serviceId"] == service.id
     assert alice[0]["newPosition"] == 1
     assert "Estimated wait: 0 minutes." in alice[1]["message"]
-    marked = client.post(f"/notifications/{alice[0]['id']}/read")
+    marked = client.post(f"/notifications/{alice[0]['id']}/read", headers=client.headers_for("alice"))
     assert marked.status_code == 200
     assert marked.json() == {**alice[0], "read": True}
-    assert client.post(f"/notifications/{alice[0]['id']}/read").json() == marked.json()
+    assert client.post(f"/notifications/{alice[0]['id']}/read", headers=client.headers_for("alice")).json() == marked.json()
     assert inbox(client, unreadOnly="true") == [alice[1]]
     assert len(inbox(client)) == 2
     assert inbox(client, "bob") == bob
-    response = client.delete("/notifications", params={"userId": "alice"})
+    response = client.delete("/notifications", params={"userId": "alice"}, headers=client.headers_for("alice"))
     assert response.status_code == 204
     assert response.content == b""
     assert inbox(client) == []
     assert inbox(client, "bob") == bob
-    assert client.delete("/notifications", params={"userId": "alice"}).status_code == 204
-    assert client.post(f"/notifications/{alice[0]['id']}/read").status_code == 404
+    assert client.delete("/notifications", params={"userId": "alice"}, headers=client.headers_for("alice")).status_code == 204
+    assert client.post(f"/notifications/{alice[0]['id']}/read", headers=client.headers_for("alice")).status_code == 404
 
 
 def test_serve_moves_third_visitor_close_and_sends_distinct_turn_alert(client, service):
@@ -66,7 +67,7 @@ def test_departure_triggers_notifications_and_cleans_tracking(client, service, s
     entry = join(client, "Alice", userId="alice")
     join(client, "Bob", userId="bob")
     if action == "leave":
-        response = client.post("/queues/advising/leave", json={"userId": "alice"})
+        response = client.post("/queues/advising/leave", json={"userId": "alice"}, headers=client.headers_for("alice"))
     elif action == "remove":
         response = client.delete(f"/queues/advising/entries/{entry['id']}")
     else:
@@ -91,11 +92,11 @@ def test_manual_reorder_sends_position_updates(client, service):
 def test_rejected_requests_do_not_emit_notifications_and_rejoin_warns_again(client, service):
     join(client, "Alice", userId="alice")
     before = inbox(client)
-    assert client.post("/queues/advising/join", json={"name": "Alice", "userId": "alice"}).status_code == 409
+    assert client.post("/queues/advising/join", json={"name": "Alice", "userId": "alice"}, headers=client.headers_for("alice")).status_code == 409
     assert client.post("/queues/advising/join", json={"name": " "}).status_code == 422
-    assert client.post("/queues/advising/leave", json={"userId": "missing"}).status_code == 404
+    assert client.post("/queues/advising/leave", json={"userId": "missing"}, headers=client.headers_for("missing")).status_code == 404
     assert inbox(client) == before
-    client.post("/queues/advising/leave", json={"userId": "alice"})
+    client.post("/queues/advising/leave", json={"userId": "alice"}, headers=client.headers_for("alice"))
     join(client, "Alice", userId="alice")
     assert [n["type"] for n in inbox(client)] == ["approaching", "joined", "left", "approaching", "joined"]
 
@@ -120,4 +121,4 @@ def test_inbox_validates_user_identifier(client, method, params):
 
 def test_unknown_notification_and_invalid_unread_filter(client):
     assert client.post("/notifications/missing/read").status_code == 404
-    assert client.get("/notifications", params={"userId": "alice", "unreadOnly": "invalid"}).status_code == 422
+    assert client.get("/notifications", params={"userId": "alice", "unreadOnly": "invalid"}, headers=client.headers_for("alice")).status_code == 422

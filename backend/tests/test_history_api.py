@@ -4,7 +4,7 @@ import pytest
 
 
 def history(client, user="alice"):
-    response = client.get("/queues/history", params={"userId": user})
+    response = client.get("/queues/history", params={"userId": user}, headers=client.headers_for(user))
     assert response.status_code == 200
     return response.json()
 
@@ -15,10 +15,10 @@ def history(client, user="alice"):
 ])
 def test_finished_visits_preserve_details_and_filter_users(client, service, action, outcome):
     assert history(client) == []
-    entry = client.post("/queues/advising/join", json={"name": "Alice", "userId": "alice"}).json()
+    entry = client.post("/queues/advising/join", json={"name": "Alice", "userId": "alice"}, headers=client.headers_for("alice")).json()
     assert history(client) == []
     if action == "leave":
-        response = client.post("/queues/advising/leave", json={"userId": "alice"})
+        response = client.post("/queues/advising/leave", json={"userId": "alice"}, headers=client.headers_for("alice"))
     elif action == "remove":
         response = client.delete(f"/queues/advising/entries/{entry['id']}")
     elif action == "delete":
@@ -27,7 +27,7 @@ def test_finished_visits_preserve_details_and_filter_users(client, service, acti
         assert client.post("/queues/advising/serve-next").status_code == 200
         assert history(client) == []  # Being served is still an active visit.
         if action == "serve-next":
-            client.post("/queues/advising/join", json={"name": "Bob", "userId": "bob"})
+            client.post("/queues/advising/join", json={"name": "Bob", "userId": "bob"}, headers=client.headers_for("bob"))
         response = client.post(f"/queues/advising/{action}")
     assert response.status_code in (200, 204)
     visits = history(client)
@@ -43,11 +43,11 @@ def test_finished_visits_preserve_details_and_filter_users(client, service, acti
 
 
 def test_history_newest_first_across_services_without_duplicates(client, service):
-    first = client.post("/queues/advising/join", json={"name": "Alice", "userId": "alice"}).json()
-    client.post("/queues/advising/leave", json={"userId": "alice"})
+    first = client.post("/queues/advising/join", json={"name": "Alice", "userId": "alice"}, headers=client.headers_for("alice")).json()
+    client.post("/queues/advising/leave", json={"userId": "alice"}, headers=client.headers_for("alice"))
     other = client.post("/services", json={"name": "Other", "description": "Other service", "durationMinutes": 5}).json()
     client.patch(f"/services/{other['id']}", json={"isOpen": True})
-    second = client.post(f"/queues/{other['id']}/join", json={"name": "Alice", "userId": "alice"}).json()
+    second = client.post(f"/queues/{other['id']}/join", json={"name": "Alice", "userId": "alice"}, headers=client.headers_for("alice")).json()
     client.post(f"/queues/{other['id']}/serve-next")
     client.post(f"/queues/{other['id']}/complete")
     assert client.post(f"/queues/{other['id']}/complete").status_code == 409

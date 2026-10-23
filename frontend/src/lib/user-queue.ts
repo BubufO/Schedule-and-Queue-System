@@ -19,8 +19,9 @@ export function useUserQueue() {
     if (serving?.entry.accountId === accountId) return [{ service, entry: serving.entry, position: 0, wait: 0, status: 'Your turn' }];
     const index = (store.queues[service.id] ?? []).findIndex(e => e.accountId === accountId);
     if (index < 0) return [];
-    const wait = service.durationMinutes * (index + (serving ? 1 : 0));
-    return [{ service, entry: store.queues[service.id][index], position: index + 1, wait, status: index === 0 ? 'Almost ready' : 'Waiting' }];
+    const entry = store.queues[service.id][index];
+    const wait = entry.estimatedWaitMinutes ?? 0;
+    return [{ service, entry, position: entry.position ?? index + 1, wait, status: index === 0 ? 'Almost ready' : 'Waiting' }];
   })[0] : undefined;
 
   return { 
