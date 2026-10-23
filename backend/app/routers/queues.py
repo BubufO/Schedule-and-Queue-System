@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.queueing import add_entry, archive, find_user_visit, wait_minutes
 from app.routers.services import find_service
-from app.notifications import forget, notify_joined, notify_now_serving, refresh_positions #hook the triggers
+from app.notifications import forget, notify_joined, notify_left, notify_now_serving, refresh_positions #hook the triggers
 from app.schemas import (
     ID_MAX,
     JoinQueueRequest,
@@ -140,6 +140,7 @@ def leave_queue(service_id: str, body: LeaveQueueRequest, store: Store = Depends
         store.queues[service_id].remove(entry)
         forget(store, entry.id)
         archive(store, entry, "left")
+        notify_left(store, service, entry)
         refresh_positions(store, service)
         return _visit_out(store.history[0])
 

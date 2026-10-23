@@ -46,6 +46,9 @@ function normalize(raw: RawNotification) {
   const lowerMsg = String(message).toLowerCase();
   const ts = raw.timestamp ?? raw.time ?? raw.createdAt ?? raw.date;
 
+  if ((raw.type ?? '').toString().toLowerCase() === 'left') {
+    return { id, icon: '↩', title: raw.title ?? 'Left Queue', lines: Array.isArray(message) ? message : [String(message)], time: ts };
+  }
   if ((raw.type ?? '').toString().toLowerCase().includes('turn') || lowerMsg.includes('your turn') || lowerMsg.includes('approaching')) {
     return { id, icon: '●', title: raw.title ?? 'Your turn is approaching!', lines: Array.isArray(message) ? message : [String(message)], time: ts };
   }

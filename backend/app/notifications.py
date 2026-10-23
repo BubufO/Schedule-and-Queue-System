@@ -43,6 +43,13 @@ def notify_joined(store: Store, service: ServiceRecord, entry: QueueEntryRecord,
                service_id=service.id)
 
 
+def notify_left(store: Store, service: ServiceRecord, entry: QueueEntryRecord) -> None:
+    if entry.user_id:
+        notify(store, entry.user_id, "left", "Left Queue",
+               f"You left the queue for {service.name}.",
+               service_id=service.id)
+
+
 def notify_now_serving(store: Store, service: ServiceRecord, entry: QueueEntryRecord) -> None:
     if entry.user_id:
         notify(store, entry.user_id, "turn", "It's your turn!",
