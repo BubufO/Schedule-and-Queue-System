@@ -155,3 +155,7 @@ export async function visitHistory(userId: string) {
 export function listNotifications(userId: string) {
     return apiFetch<Notification[]>('GET', `/notifications?userId=${encodeURIComponent(userId)}`);
 }
+
+export function clearNotifications(userId: string) {
+    return apiFetch<void>('DELETE', `/notifications?userId=${encodeURIComponent(userId)}`);
+}

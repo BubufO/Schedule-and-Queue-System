@@ -43,6 +43,7 @@ type QueueStore = Data & {
   joinAsGuest: (id: string, name: string) => Promise<QueueEntry>;
   leaveQueue: () => Promise<void>;
   leaveAsGuest: (id: string, entryId: string) => Promise<void>;
+  clearNotifications: () => Promise<void>;
 };
 
 const QueueStoreContext = createContext<QueueStore | null>(null);
@@ -136,6 +137,10 @@ export function QueueStoreProvider({ children }: { children: ReactNode }) {
       await mutate(() => api.leaveQueue(serviceId, { userId: account.id }));
     },
     leaveAsGuest: (id, entryId) => mutate(() => api.leaveQueue(id, { entryId })).then(() => undefined),
+    clearNotifications: async () => {
+      if (!account) throw new Error('Please sign in first.');
+      await mutate(() => api.clearNotifications(account.id));
+    },
   };
 
   return <QueueStoreContext.Provider value={store}>{children}</QueueStoreContext.Provider>;
