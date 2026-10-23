@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.queueing import add_entry, archive, find_user_visit, wait_minutes
 from app.routers.services import find_service
+from app.notifications import forget, notify_joined, notify_now_serving, refresh_positions #hook the triggers
 from app.schemas import (
     ID_MAX,
     JoinQueueRequest,
@@ -113,13 +114,15 @@ def join_queue(service_id: str, body: JoinQueueRequest, store: Store = Depends(g
             raise HTTPException(status.HTTP_409_CONFLICT, "You already have an active queue visit.")
         entry = add_entry(store, service, body.name, priority=body.priority, user_id=body.user_id)
         index = store.queues[service.id].index(entry)
+        notify_joined(store, service, entry, wait_minutes(store, service, index))
+        refresh_positions(store, service)
         return _waiting_out(store, service, index, entry)
 
 
 @router.post("/{service_id}/leave", response_model=VisitOut)
 def leave_queue(service_id: str, body: LeaveQueueRequest, store: Store = Depends(get_store)):
     with store.lock:
-        find_service(store, service_id)
+        service = find_service(store, service_id)
         serving = store.now_serving.get(service_id)
         if body.user_id is not None:
             if serving and serving.entry.user_id == body.user_id:
@@ -135,7 +138,9 @@ def leave_queue(service_id: str, body: LeaveQueueRequest, store: Store = Depends
                 raise HTTPException(status.HTTP_409_CONFLICT, "Your service has started. Please contact staff.")
             _, entry = _find_waiting(store, service_id, body.entry_id)
         store.queues[service_id].remove(entry)
+        forget(store, entry.id)
         archive(store, entry, "left")
+        refresh_positions(store, service)
         return _visit_out(store.history[0])
 
 
@@ -146,7 +151,7 @@ def leave_queue(service_id: str, body: LeaveQueueRequest, store: Store = Depends
 def serve_next(service_id: str, store: Store = Depends(get_store)):
     """Finish the current visit, if any, and call the person at the front of the line."""
     with store.lock:
-        find_service(store, service_id)
+        service = find_service(store, service_id)
         queue = store.queues.get(service_id, [])
         if not queue:
             raise HTTPException(status.HTTP_409_CONFLICT, "No one is waiting in this queue.")
@@ -155,6 +160,9 @@ def serve_next(service_id: str, store: Store = Depends(get_store)):
             archive(store, current.entry, "served")
         serving = ServingRecord(entry=queue.pop(0), started_at=utc_now())
         store.now_serving[service_id] = serving
+        forget(store, serving.entry.id)
+        notify_now_serving(store, service, serving.entry)
+        refresh_positions(store, service)
         return _serving_out(serving)
 
 
@@ -173,10 +181,12 @@ def complete_current(service_id: str, store: Store = Depends(get_store)):
 @router.delete("/{service_id}/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_entry(service_id: str, entry_id: str, store: Store = Depends(get_store)):
     with store.lock:
-        find_service(store, service_id)
+        service = find_service(store, service_id)
         _, entry = _find_waiting(store, service_id, entry_id)
         store.queues[service_id].remove(entry)
+        forget(store, entry.id)
         archive(store, entry, "removed")
+        refresh_positions(store, service)  
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -191,4 +201,5 @@ def move_entry(service_id: str, entry_id: str, body: MoveEntryRequest, store: St
         if not 0 <= target < len(queue):
             raise HTTPException(status.HTTP_409_CONFLICT, f"Already at the {'front' if body.direction == 'up' else 'back'} of the queue.")
         queue[index], queue[target] = queue[target], queue[index]
+        refresh_positions(store, service)
         return _queue_out(store, service)
