@@ -149,7 +149,7 @@ class VisitOut(QueueEntryOut):
 class NotificationOut(ApiModel):
     id: str
     user_id: str
-    type: Literal["joined", "left", "removed", "update", "turn", "service"]
+    type: Literal["joined", "left", "removed", "update", "approaching", "turn", "service"]
     title: str
     message: str
     timestamp: datetime

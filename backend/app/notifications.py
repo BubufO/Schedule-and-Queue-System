@@ -82,7 +82,7 @@ def refresh_positions(store: Store, service: ServiceRecord) -> None:
                    service_id=service.id, old_position=old, new_position=position)
         if position <= NEAR_FRONT_POSITION and entry.id not in store.approaching_notified:
             store.approaching_notified.add(entry.id)
-            notify(store, entry.user_id, "turn", "Your turn is approaching!",
+            notify(store, entry.user_id, "approaching", "Your turn is approaching!",
                    f"You are currently #{position} in {service.name}.",
                    service_id=service.id, new_position=position)
         store.last_position[entry.id] = position

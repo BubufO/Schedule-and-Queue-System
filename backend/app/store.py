@@ -52,7 +52,7 @@ class VisitRecord:
 class NotificationRecord:
     id: str
     user_id: str
-    type: str  # joined | update | turn | service
+    type: str  # joined | left | removed | update | approaching | turn | service
     title: str
     message: str
     timestamp: datetime
