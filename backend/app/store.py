@@ -48,6 +48,20 @@ class VisitRecord:
     outcome: str  # served | left | removed | cancelled
 
 
+@dataclass
+class NotificationRecord:
+    id: str
+    user_id: str
+    type: str  # joined | left | removed | update | approaching | turn | service
+    title: str
+    message: str
+    timestamp: datetime
+    service_id: str | None = None
+    old_position: int | None = None
+    new_position: int | None = None
+    read: bool = False
+
+
 # Seed services, matching the ones the frontend was built against.
 SEED_SERVICES: list[tuple[str, str, str, int, str, bool, str]] = [
     ("advising", "Academic Advising", "Meet with an advisor about degree plans, course selection, and graduation checks.", 20, "high", True, "A"),
@@ -111,6 +125,10 @@ class Store:
         self.now_serving: dict[str, ServingRecord] = {}
         # Finished visits, newest first.
         self.history: list[VisitRecord] = []
+        # Notifications for each user, newest first
+        self.notifications: list[NotificationRecord] = []   # newest first
+        self.last_position: dict[str, int] = {}              # entry id -> last position we told them about
+        self.approaching_notified: set[str] = set()          # entry ids already warned they're close
         # Shared counter for entry ids and ticket numbers.
         self.sequence = 100
         if seed:

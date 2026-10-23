@@ -8,8 +8,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import * as api from '@/lib/api/queues';
+import { listNotifications } from '@/lib/api/queues';
 import { useAuth } from '@/lib/auth-store';
-import type { QueueEntry, QueueVisit, Service } from '@/lib/types';
+import type { QueueEntry, QueueVisit, Service, Notification } from '@/lib/types';
 
 export type ServiceInput = api.ServiceInput;
 export type NowServing = { entry: QueueEntry; startedAt: string };
@@ -22,6 +23,7 @@ type Data = {
   queues: Record<string, QueueEntry[]>;
   nowServing: Record<string, NowServing | undefined>;
   history: QueueVisit[];
+  notifications: Notification[];
 };
 
 type QueueStore = Data & {
@@ -41,11 +43,12 @@ type QueueStore = Data & {
   joinAsGuest: (id: string, name: string) => Promise<QueueEntry>;
   leaveQueue: () => Promise<void>;
   leaveAsGuest: (id: string, entryId: string) => Promise<void>;
+  clearNotifications: () => Promise<void>;
 };
 
 const QueueStoreContext = createContext<QueueStore | null>(null);
 
-const empty: Data = { services: [], queues: {}, nowServing: {}, history: [] };
+const empty: Data = { services: [], queues: {}, nowServing: {}, history: [], notifications: [] };
 
 export function QueueStoreProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
@@ -59,10 +62,11 @@ export function QueueStoreProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     const request = ++latestRequest.current;
     try {
-      const [services, queues, history] = await Promise.all([
+      const [services, queues, history, notifications] = await Promise.all([
         api.listServices(),
         api.listQueues(),
         account ? api.visitHistory(account.id) : Promise.resolve([]),
+        account ? listNotifications(account.id) : Promise.resolve([]),
       ]);
       if (request !== latestRequest.current) return;
       setData({
@@ -72,6 +76,7 @@ export function QueueStoreProvider({ children }: { children: ReactNode }) {
           queues.flatMap((q) => (q.nowServing ? [[q.serviceId, q.nowServing]] : [])),
         ),
         history,
+        notifications,
       });
       setLoaded(true);
       setLoadError(null);
@@ -132,6 +137,10 @@ export function QueueStoreProvider({ children }: { children: ReactNode }) {
       await mutate(() => api.leaveQueue(serviceId, { userId: account.id }));
     },
     leaveAsGuest: (id, entryId) => mutate(() => api.leaveQueue(id, { entryId })).then(() => undefined),
+    clearNotifications: async () => {
+      if (!account) throw new Error('Please sign in first.');
+      await mutate(() => api.clearNotifications(account.id));
+    },
   };
 
   return <QueueStoreContext.Provider value={store}>{children}</QueueStoreContext.Provider>;

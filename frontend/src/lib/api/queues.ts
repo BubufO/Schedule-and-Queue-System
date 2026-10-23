@@ -4,6 +4,7 @@
 // so the rest of the app keeps using `accountId` for the signed-in user who owns an entry.
 
 import { apiFetch } from '@/lib/api/client';
+import type { Notification } from '@/lib/types';
 import type { Priority, QueueEntry, QueueVisit, Service } from '@/lib/types';
 
 export type ServiceInput = {
@@ -149,4 +150,12 @@ export async function moveEntry(serviceId: string, entryId: string, direction: '
 export async function visitHistory(userId: string) {
   const visits = await apiFetch<VisitDto[]>('GET', `/queues/history?userId=${encodeURIComponent(userId)}`);
   return visits.map(toVisit);
+}
+
+export function listNotifications(userId: string) {
+    return apiFetch<Notification[]>('GET', `/notifications?userId=${encodeURIComponent(userId)}`);
+}
+
+export function clearNotifications(userId: string) {
+    return apiFetch<void>('DELETE', `/notifications?userId=${encodeURIComponent(userId)}`);
 }

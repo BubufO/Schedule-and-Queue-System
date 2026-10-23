@@ -1,9 +1,9 @@
-﻿import React from 'react';
-import { Screen, Card, SectionLabel } from '@/components/ui';
+﻿import React, { useState } from 'react';
+import { Screen, Card, SectionLabel, AppButton } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { UserNav } from '@/components/user-nav';
 import { useUserQueue } from '@/lib/user-queue';
-import { generateMockNotifications } from '@/lib/mock-notifications';
+import { messageOf } from '@/lib/queue-store';
 
 type RawNotification = any;
 
@@ -47,6 +47,12 @@ function normalize(raw: RawNotification) {
   const lowerMsg = String(message).toLowerCase();
   const ts = raw.timestamp ?? raw.time ?? raw.createdAt ?? raw.date;
 
+  if ((raw.type ?? '').toString().toLowerCase() === 'left') {
+    return { id, icon: '↩', title: raw.title ?? 'Left Queue', lines: Array.isArray(message) ? message : [String(message)], time: ts };
+  }
+  if ((raw.type ?? '').toString().toLowerCase() === 'removed') {
+    return { id, icon: '✖', title: raw.title ?? 'Removed from Queue', lines: Array.isArray(message) ? message : [String(message)], time: ts };
+  }
   if ((raw.type ?? '').toString().toLowerCase().includes('turn') || lowerMsg.includes('your turn') || lowerMsg.includes('approaching')) {
     return { id, icon: '●', title: raw.title ?? 'Your turn is approaching!', lines: Array.isArray(message) ? message : [String(message)], time: ts };
   }
@@ -67,24 +73,32 @@ function normalize(raw: RawNotification) {
 }
 
 export default function UserNotificationsScreen() {
-  const { notifications: baseNotifications, active, history } = useUserQueue();
+  const { notifications: baseNotifications, active, history, clearNotifications } = useUserQueue();
+  const [error, setError] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
 
-  // dev-only: generate mocks from current queue state; keep production unchanged
-  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
-  const mockNotifications = isDev ? generateMockNotifications(active, history) : [];
-
-  // If you also want a targeted developer user, handle that here (not inside the hook)
-  const devUserName = 'Jordan Reyes';
-  const jordanMocks = isDev && (baseNotifications as any[]).length && (typeof (global as any).__TEST_JORDAN__ !== 'undefined' || false) ? [] : [];
-  // (Optionally create targeted mocks here if you need — keep them in the UI layer)
-
-  const combined = [...mockNotifications, ...(baseNotifications ?? [])];
-
-  const items = combined.map(normalize);
+  const items = (baseNotifications ?? []).map(normalize);
 
   return (
     <Screen title="Notifications" subtitle="Recent messages" nav={<UserNav />}>
       <SectionLabel>{`Notifications (${items.length})`}</SectionLabel>
+
+      {items.length > 0 && (
+        <AppButton
+          label={clearing ? 'Clearing…' : 'Clear all'}
+          variant="danger"
+          size="sm"
+          disabled={clearing}
+          accessibilityLabel="Clear all notifications"
+          onPress={async () => {
+            setError(null);
+            setClearing(true);
+            try { await clearNotifications(); } catch (e) { setError(messageOf(e, 'Unable to clear notifications.')); }
+            finally { setClearing(false); }
+          }}
+        />
+      )}
+      {error && <ThemedText accessibilityRole="alert">{error}</ThemedText>}
 
       {items.length === 0 && <Card><ThemedText>No notifications yet.</ThemedText></Card>}
 
