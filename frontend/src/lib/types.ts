@@ -35,6 +35,20 @@ export type Account = {
   phone?: string;
 };
 
+// Profile settings (backend/app/routers/profile.py): the account plus notification preferences.
+export type NotificationPreferences = {
+  notifyEmail: boolean;
+  notifySms: boolean;
+  notifyInApp: boolean;
+};
+
+export type Profile = Account & NotificationPreferences;
+
+// Only the fields that changed are sent. Send phone as '' to remove it.
+export type ProfileChanges = Partial<
+  Pick<Account, 'displayName' | 'username'> & { email: string; phone: string } & NotificationPreferences
+>;
+
 export type Session = {
   token: string;
   account: Account;

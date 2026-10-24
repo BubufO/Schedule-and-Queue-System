@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/auth';
 import { setAuthToken } from '@/lib/api/client';
 import type {
+  Account,
   RegistrationInput,
   Role,
   Session,
@@ -32,6 +33,8 @@ type AuthStore = {
   verify: (code: string) => Promise<Session>;
   resendCode: (channel?: VerificationChannel) => Promise<VerificationChallenge>;
   cancelVerification: () => void;
+  // Replaces the signed-in account after profile settings save, so the new name shows everywhere.
+  updateAccount: (account: Account) => void;
 };
 
 const AuthContext = createContext<AuthStore | null>(null);
@@ -89,6 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const cancelVerification = () => setPendingVerification(null);
 
+  const updateAccount = (account: Account) => {
+    setSession((current) => (current ? { ...current, account } : current));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -100,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verify,
         resendCode,
         cancelVerification,
+        updateAccount,
       }}>
       {children}
     </AuthContext.Provider>

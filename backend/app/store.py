@@ -72,6 +72,10 @@ class UserRecord:
     role: str  # client | admin
     email: str | None = None
     phone: str | None = None
+    # Notification preferences, changed on the profile settings screen.
+    notify_email: bool = True
+    notify_sms: bool = False
+    notify_in_app: bool = True
 
 
 @dataclass
