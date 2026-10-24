@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.errors import register_error_handlers
-from app.routers import auth, notifications, queues, services
+from app.routers import auth, notifications, profile, queues, services
 
 app = FastAPI(
     title="QueueSmart API",
@@ -20,6 +20,7 @@ app.add_middleware(
 
 register_error_handlers(app)
 app.include_router(auth.router)
+app.include_router(profile.router)
 app.include_router(services.router)
 app.include_router(queues.router)
 app.include_router(notifications.router)

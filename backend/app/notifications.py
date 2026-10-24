@@ -19,7 +19,20 @@ def notify(
     service_id: str | None = None,
     old_position: int | None = None,
     new_position: int | None = None,
-) -> NotificationRecord:
+) -> NotificationRecord | None:
+    """Delivers a notification through the channels the user turned on in profile settings.
+
+    Email and SMS are mocked: they are logged, never sent. Returns the in-app record, or None
+    when the user turned in-app notifications off. Users with no account record get in-app notifications only.
+    """
+    user = store.users.get(user_id)
+    if user is not None:
+        if user.notify_email and user.email:
+            logger.info("would email %s [%s]: %s", user_id, type_, message)
+        if user.notify_sms and user.phone:
+            logger.info("would text %s [%s]: %s", user_id, type_, message)
+        if not user.notify_in_app:
+            return None
     record = NotificationRecord(
         id=f"notif-{store.next_sequence()}",
         user_id=user_id,
