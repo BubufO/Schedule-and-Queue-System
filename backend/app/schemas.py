@@ -303,6 +303,119 @@ class VerificationChallengeOut(ApiModel):
     channels: list[VerificationChannel]  # every channel this account can be verified through
 
 
+# ---- Profile settings ---------------------------------------------------------------------
+# A signed-in user editing their own account. The field rules match registration.
+
+
+PHONE_MAX = 32  # characters as typed, before formatting like "(555) 012-3456" is stripped
+
+
+def _valid_username(value: str) -> str:
+    if not value:
+        raise ValueError("Username is required.")
+    if not USERNAME_MIN <= len(value) <= USERNAME_MAX:
+        raise ValueError(f"Use {USERNAME_MIN} to {USERNAME_MAX} characters.")
+    if not USERNAME_PATTERN.match(value):
+        raise ValueError("Use letters, numbers, dots, dashes or underscores.")
+    return value.lower()
+
+
+def _valid_email(value: str) -> str:
+    if not value:
+        raise ValueError("Email is required.")
+    if not EMAIL_PATTERN.match(value):
+        raise ValueError("Enter a valid email address.")
+    return value.lower()
+
+
+def _valid_new_password(value: str) -> str:
+    if len(value) < PASSWORD_MIN:
+        raise ValueError(f"Use at least {PASSWORD_MIN} characters.")
+    if not re.search(r"[a-zA-Z]", value) or not re.search(r"[0-9]", value):
+        raise ValueError("Include at least one letter and one number.")
+    return value
+
+
+class ProfileUpdate(RequestModel):
+    """Partial update: send only the fields that change. Send phone as "" or null to remove it.
+
+    Validation:
+    - Required: at least one field; display name, username and email can't be emptied or nulled.
+    - Types: strings must be strings and preferences must be true/false (no "yes" or 1).
+    - Lengths: display name 1-60, username 3-32, email up to 254, phone up to 32 characters
+      with 10-15 digits. Unknown fields such as role are rejected.
+    """
+
+    display_name: DisplayName | None = None
+    username: Annotated[StrictStr, Field(max_length=USERNAME_MAX)] | None = None
+    email: Annotated[StrictStr, Field(max_length=EMAIL_MAX)] | None = None
+    phone: Annotated[StrictStr, Field(max_length=PHONE_MAX)] | None = None
+    notify_email: StrictBool | None = None
+    notify_sms: StrictBool | None = None
+    notify_in_app: StrictBool | None = None
+
+    @field_validator("username")
+    @classmethod
+    def valid_username(cls, value: str | None) -> str | None:
+        return None if value is None else _valid_username(value)
+
+    @field_validator("email")
+    @classmethod
+    def valid_email(cls, value: str | None) -> str | None:
+        return None if value is None else _valid_email(value)
+
+    @field_validator("phone")
+    @classmethod
+    def valid_phone(cls, value: str | None) -> str | None:
+        phone = normalize_phone(value or "")
+        if not phone:
+            return None
+        if not PHONE_DIGITS_MIN <= len(phone.lstrip("+")) <= PHONE_DIGITS_MAX:
+            raise ValueError("Enter a valid phone number, including area code.")
+        return phone
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if not self.model_fields_set:
+            raise ValueError("Provide at least one field to update.")
+        for field in self.model_fields_set - {"phone"}:
+            if getattr(self, field) is None:
+                raise ValueError(f"{to_camel(field)} cannot be null.")
+        return self
+
+
+class PasswordChange(RequestModel):
+    """Both fields required, strings, at most 128 characters. The new one needs 8+ characters
+    with a letter and a number, and must differ from the current one."""
+
+    current_password: Password
+    new_password: Password
+
+    @field_validator("current_password")
+    @classmethod
+    def present(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Enter your current password.")
+        return value
+
+    @field_validator("new_password")
+    @classmethod
+    def strong_password(cls, value: str) -> str:
+        return _valid_new_password(value)
+
+    @model_validator(mode="after")
+    def different(self):
+        if self.new_password == self.current_password:
+            raise ValueError("Choose a password different from your current one.")
+        return self
+
+
+class ProfileOut(AccountOut):
+    notify_email: bool
+    notify_sms: bool
+    notify_in_app: bool
+
+
 #---- Notifications -------------------------------------------------------------------------
 class NotificationOut(ApiModel):
     id: str
