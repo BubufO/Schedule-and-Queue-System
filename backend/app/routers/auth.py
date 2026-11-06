@@ -10,6 +10,11 @@ instead of sent, the same way notifications are.
 
 import logging
 from datetime import timedelta
+from uuid import uuid4
+
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.users import all_users, save_user
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
@@ -40,9 +45,9 @@ def _account_out(user: UserRecord) -> AccountOut:
     return AccountOut.model_validate(user)
 
 
-def _session_out(store: Store, session: SessionRecord) -> SessionOut:
+def _session_out(user: UserRecord, session: SessionRecord) -> SessionOut:
     return SessionOut(token=session.token, expires_at=session.expires_at,
-                      account=_account_out(store.users[session.user_id]))
+                      account=_account_out(user))
 
 
 def _mask_email(email: str) -> str:
@@ -93,18 +98,18 @@ def _drop_expired_registrations(store: Store) -> None:
 
 
 @router.post("/register", response_model=VerificationChallengeOut, status_code=status.HTTP_201_CREATED)
-def register(body: RegisterRequest, store: Store = Depends(get_store)):
+def register(body: RegisterRequest, store: Store = Depends(get_store), db: Session = Depends(get_db)):
     # Hashing is slow on purpose, so do it before taking the lock.
     password_hash = hash_password(body.password)
     with store.lock:
         _drop_expired_registrations(store)
-        taken = list(store.users.values()) + [p.user for p in store.pending_registrations.values()]
+        taken = all_users(db) + [p.user for p in store.pending_registrations.values()]
         if any(u.username == body.username for u in taken):
             raise HTTPException(status.HTTP_409_CONFLICT, "That username is already taken.")
         if any(u.email == body.email for u in taken):
             raise HTTPException(status.HTTP_409_CONFLICT, "An account with that email already exists. Try signing in.")
 
-        number = store.next_sequence()
+        number = uuid4().hex
         pending = PendingRegistrationRecord(
             id=f"ver-{number}",
             user=UserRecord(
@@ -127,7 +132,7 @@ def register(body: RegisterRequest, store: Store = Depends(get_store)):
 
 
 @router.post("/verify", response_model=SessionOut)
-def verify(body: VerifyRequest, store: Store = Depends(get_store)):
+def verify(body: VerifyRequest, store: Store = Depends(get_store), db: Session = Depends(get_db)):
     """Confirms the code, activates the account, and signs it in."""
     with store.lock:
         pending = _find_pending(store, body.verification_id)
@@ -144,9 +149,9 @@ def verify(body: VerifyRequest, store: Store = Depends(get_store)):
                 status.HTTP_400_BAD_REQUEST,
                 f"That code is incorrect. {left} {'attempt' if left == 1 else 'attempts'} left.",
             )
+        save_user(db, pending.user, create=True)
         del store.pending_registrations[pending.id]
-        store.users[pending.user.id] = pending.user
-        return _session_out(store, issue_session(store, pending.user))
+        return _session_out(pending.user, issue_session(store, pending.user))
 
 
 @router.post("/verify/resend", response_model=VerificationChallengeOut)
@@ -165,13 +170,13 @@ def resend_verification(body: ResendVerificationRequest, store: Store = Depends(
 
 
 @router.post("/login", response_model=SessionOut)
-def login(body: LoginRequest, store: Store = Depends(get_store)):
-    user = authenticate(store, body.username, body.password)
+def login(body: LoginRequest, store: Store = Depends(get_store), db: Session = Depends(get_db)):
+    user = authenticate(db, body.username, body.password)
     # One message for both failures, so the response never confirms a username exists.
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect username or password.")
     with store.lock:
-        return _session_out(store, issue_session(store, user))
+        return _session_out(user, issue_session(store, user))
 
 
 @router.get("/me", response_model=AccountOut)

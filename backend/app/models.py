@@ -94,3 +94,47 @@ class Queue(Base):
 
     def __repr__(self) -> str:
         return f"Queue(queue_id={self.queue_id!r}, service_id={self.service_id!r}, status={self.status!r})"
+
+
+class UserCredentials(Base):
+    """Authentication data; profile details share the same stable user ID."""
+
+    __tablename__ = "user_credentials"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    username: Mapped[str] = mapped_column(String(32), nullable=False)
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(10), nullable=False, default="client")
+    profile: Mapped["UserProfile"] = relationship(
+        cascade="all, delete-orphan", uselist=False, lazy="joined"
+    )
+
+    __table_args__ = (
+        CheckConstraint("length(trim(id)) BETWEEN 1 AND 64", name="chk_user_id"),
+        CheckConstraint("length(username) BETWEEN 3 AND 32", name="chk_username_length"),
+        CheckConstraint("length(trim(email)) BETWEEN 3 AND 254", name="chk_email_length"),
+        CheckConstraint("length(password_hash) BETWEEN 1 AND 255", name="chk_password_hash_length"),
+        CheckConstraint("role IN ('client', 'admin')", name="chk_user_role"),
+        Index("uq_user_username", func.lower(username), unique=True),
+        Index("uq_user_email", func.lower(email), unique=True),
+    )
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    user_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("user_credentials.id", ondelete="CASCADE"), primary_key=True
+    )
+    display_name: Mapped[str] = mapped_column(String(60), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(16))
+    notify_email: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    notify_sms: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notify_in_app: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    __table_args__ = (
+        CheckConstraint("length(trim(display_name)) BETWEEN 1 AND 60", name="chk_profile_name"),
+        CheckConstraint("phone IS NULL OR length(phone) BETWEEN 10 AND 16", name="chk_profile_phone"),
+        CheckConstraint("NOT notify_sms OR phone IS NOT NULL", name="chk_sms_phone"),
+    )

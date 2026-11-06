@@ -251,3 +251,33 @@ Error responses:
 | 404 | Unknown service, queue entry, or verification | `{"detail": "Service \"x\" was not found."}` |
 | 410 / 429 | Verification code expired / too many tries or resent too soon | `{"detail": "This code has expired. Send a new one."}` |
 | 409 | Request conflicts with the current state (queue closed, already in a queue, duplicate name, username or email taken, nobody waiting) | `{"detail": "This service is currently closed."}` |
+
+## A4: credentials and profiles
+
+Apply `sql/001_users.sql` once in the Supabase SQL editor before using authentication.
+It creates `user_credentials` and `user_profiles` without modifying services/queues.
+The two tables share a string user ID (up to 64 characters), which other tables can
+reference as `user_credentials.id`. Email is stored once on credentials; a profile
+references that email's owner through its user ID. Roles remain `client` (User)
+and `admin` (Administrator) for compatibility with the existing UI.
+
+Verified registrations write credentials and profile in one transaction, using
+random UUID-based IDs that stay unique across restarts. Username and email have
+case-insensitive unique database indexes. Passwords use the existing salted PBKDF2
+hash format; password hashes are never included in API responses. Profile edits,
+notification preferences, and password changes are persisted too. Self-registration
+cannot choose an administrator role.
+
+Sessions and pending verification challenges remain in memory: after restarting,
+users sign in again and unfinished registrations must restart. Accounts survive.
+The in-memory demo accounts are not automatically copied to the database. Register
+an account normally; a database administrator can grant its `user_credentials` row
+the `admin` role explicitly. Queue entries/history/notifications remain separate
+team-owned persistence work.
+
+Tests use isolated SQLite databases and never contact Supabase. Run:
+
+```sh
+uv sync --locked --group dev
+uv run --locked python -m pytest --cov=app --cov-report=term-missing --cov-report=html --cov-report=xml
+```

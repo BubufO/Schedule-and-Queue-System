@@ -11,6 +11,9 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app.models import Service
+from app.users import save_user
+from app.security import hash_password
+from app.store import SEED_USERS
 from app.store import SEED_SERVICES, SessionRecord, Store, UserRecord, get_store, utc_now
 
 
@@ -21,14 +24,19 @@ class ScenarioClient(TestClient):
     Accounts/sessions are fixture data; login and role tests remain in test_auth.py.
     """
 
-    def __init__(self, store):
+    def __init__(self, store, db):
         self.store = store
+        self.db = db
         super().__init__(app)
         self.headers.update(self.headers_for("test-admin", role="admin"))
 
     def headers_for(self, user_id, *, role="client"):
         if user_id not in self.store.users:
             self.store.users[user_id] = UserRecord(user_id, user_id, "unused", user_id, role)
+        user = self.store.users[user_id]
+        if user.email is None:
+            user.email = f"{user_id}@example.com"
+        save_user(self.db, user)
         token = f"test-session-{user_id}"
         self.store.sessions[token] = SessionRecord(token, user_id, utc_now() + timedelta(hours=1))
         return {"Authorization": f"Bearer {token}"}
@@ -58,6 +66,8 @@ def seeded_db(db):
         for id_, name, description, duration, priority, is_open, prefix in SEED_SERVICES
     )
     db.commit()
+    for id_, username, password, name, role in SEED_USERS:
+        save_user(db, UserRecord(id_, username, hash_password(password), name, role, f"{username}@example.com"))
     return db
 
 
@@ -77,7 +87,7 @@ def client(store, db):
     app.dependency_overrides[get_store] = lambda: store
     app.dependency_overrides[get_db] = lambda: db
     try:
-        with ScenarioClient(store) as test_client:
+        with ScenarioClient(store, db) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.clear()
