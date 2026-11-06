@@ -142,6 +142,9 @@ class ServingOut(ApiModel):
 
 
 class QueueOut(ApiModel):
+    # From the queues table. None only for a service that has no queue row yet.
+    queue_id: int | None = None
+    created_at: datetime | None = None
     service_id: str
     service_name: str
     is_open: bool

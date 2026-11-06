@@ -1,5 +1,8 @@
 """Queue Management module.
 
+Each service's queue is a row in the queues table (its status and created date). The people
+waiting in a queue are still kept in memory until they get a table of their own.
+
 Users join and leave a service's queue. Administrators view the queue, serve the next
 person, and can remove or reorder people. Waiting lists are kept in serving order: priority
 first, then arrival (see app.queueing).
@@ -65,6 +68,8 @@ def _serving_out(serving: ServingRecord | None) -> ServingOut | None:
 def _queue_out(store: Store, service: Service) -> QueueOut:
     queue = store.queues.get(service.id, [])
     return QueueOut(
+        queue_id=service.queue.queue_id if service.queue else None,
+        created_at=service.queue.created_at if service.queue else None,
         service_id=service.id,
         service_name=service.name,
         is_open=service.is_open,
