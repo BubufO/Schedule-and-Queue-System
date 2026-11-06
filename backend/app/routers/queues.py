@@ -1,5 +1,8 @@
 """Queue Management module.
 
+Each service's queue is a row in the queues table (its status and created date). The people
+waiting in a queue are still kept in memory until they get a table of their own.
+
 Users join and leave a service's queue. Administrators view the queue, serve the next
 person, and can remove or reorder people. Waiting lists are kept in serving order: priority
 first, then arrival (see app.queueing).
@@ -9,9 +12,12 @@ session; guests who joined with a link act by entryId and need no session.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy.orm import Session
 
+from app.database import get_db
+from app.models import Service
 from app.queueing import add_entry, archive, find_user_visit, join_wait_minutes, wait_minutes
-from app.routers.services import find_service
+from app.routers.services import all_services, find_service
 from app.notifications import forget, notify_joined, notify_left, notify_now_serving, notify_removed, refresh_positions #hook the triggers
 from app.schemas import (
     ID_MAX,
@@ -27,7 +33,6 @@ from app.schemas import (
 from app.security import current_user, ensure_self, require_admin
 from app.store import (
     QueueEntryRecord,
-    ServiceRecord,
     ServingRecord,
     Store,
     UserRecord,
@@ -46,7 +51,7 @@ def _entry_out(entry: QueueEntryRecord) -> dict:
     return QueueEntryOut.model_validate(entry).model_dump()
 
 
-def _waiting_out(store: Store, service: ServiceRecord, index: int, entry: QueueEntryRecord) -> WaitingEntryOut:
+def _waiting_out(store: Store, service: Service, index: int, entry: QueueEntryRecord) -> WaitingEntryOut:
     return WaitingEntryOut(
         **_entry_out(entry),
         position=index + 1,
@@ -60,9 +65,11 @@ def _serving_out(serving: ServingRecord | None) -> ServingOut | None:
     return ServingOut(entry=QueueEntryOut.model_validate(serving.entry), started_at=serving.started_at)
 
 
-def _queue_out(store: Store, service: ServiceRecord) -> QueueOut:
+def _queue_out(store: Store, service: Service) -> QueueOut:
     queue = store.queues.get(service.id, [])
     return QueueOut(
+        queue_id=service.queue.queue_id if service.queue else None,
+        created_at=service.queue.created_at if service.queue else None,
         service_id=service.id,
         service_name=service.name,
         is_open=service.is_open,
@@ -92,10 +99,11 @@ def _find_waiting(store: Store, service_id: str, entry_id: str) -> tuple[int, Qu
 
 
 @router.get("", response_model=list[QueueOut])
-def list_queues(store: Store = Depends(get_store)):
+def list_queues(db: Session = Depends(get_db), store: Store = Depends(get_store)):
     """Every service's queue, for dashboards that show all of them at once."""
+    services = all_services(db)
     with store.lock:
-        return [_queue_out(store, s) for s in store.services.values()]
+        return [_queue_out(store, s) for s in services]
 
 
 @router.get("/history", response_model=list[VisitOut])
@@ -111,9 +119,10 @@ def visit_history(
 
 
 @router.get("/{service_id}", response_model=QueueOut)
-def view_queue(service_id: str, store: Store = Depends(get_store)):
+def view_queue(service_id: str, db: Session = Depends(get_db), store: Store = Depends(get_store)):
+    service = find_service(db, service_id)
     with store.lock:
-        return _queue_out(store, find_service(store, service_id))
+        return _queue_out(store, service)
 
 
 # ---- users ----------------------------------------------------------------------------
@@ -124,12 +133,13 @@ def join_queue(
     service_id: str,
     body: JoinQueueRequest,
     user: UserRecord | None = Depends(current_user),
+    db: Session = Depends(get_db),
     store: Store = Depends(get_store),
 ):
     if body.user_id is not None:
         ensure_self(user, body.user_id)
+    service = find_service(db, service_id)
     with store.lock:
-        service = find_service(store, service_id)
         if not service.is_open:
             raise HTTPException(status.HTTP_409_CONFLICT, "This service is currently closed.")
         if body.user_id and find_user_visit(store, body.user_id):
@@ -146,12 +156,13 @@ def leave_queue(
     service_id: str,
     body: LeaveQueueRequest,
     user: UserRecord | None = Depends(current_user),
+    db: Session = Depends(get_db),
     store: Store = Depends(get_store),
 ):
     if body.user_id is not None:
         ensure_self(user, body.user_id)
+    service = find_service(db, service_id)
     with store.lock:
-        service = find_service(store, service_id)
         serving = store.now_serving.get(service_id)
         if body.user_id is not None:
             if serving and serving.entry.user_id == body.user_id:
@@ -168,7 +179,7 @@ def leave_queue(
             _, entry = _find_waiting(store, service_id, body.entry_id)
         store.queues[service_id].remove(entry)
         forget(store, entry.id)
-        archive(store, entry, "left")
+        archive(store, entry, "left", service.name)
         notify_left(store, service, entry)
         refresh_positions(store, service)
         return _visit_out(store.history[0])
@@ -178,16 +189,16 @@ def leave_queue(
 
 
 @router.post("/{service_id}/serve-next", response_model=ServingOut, dependencies=[Depends(require_admin)])
-def serve_next(service_id: str, store: Store = Depends(get_store)):
+def serve_next(service_id: str, db: Session = Depends(get_db), store: Store = Depends(get_store)):
     """Finish the current visit, if any, and call the person at the front of the line."""
+    service = find_service(db, service_id)
     with store.lock:
-        service = find_service(store, service_id)
         queue = store.queues.get(service_id, [])
         if not queue:
             raise HTTPException(status.HTTP_409_CONFLICT, "No one is waiting in this queue.")
         current = store.now_serving.pop(service_id, None)
         if current:
-            archive(store, current.entry, "served")
+            archive(store, current.entry, "served", service.name)
         serving = ServingRecord(entry=queue.pop(0), started_at=utc_now())
         store.now_serving[service_id] = serving
         forget(store, serving.entry.id)
@@ -197,35 +208,35 @@ def serve_next(service_id: str, store: Store = Depends(get_store)):
 
 
 @router.post("/{service_id}/complete", response_model=VisitOut, dependencies=[Depends(require_admin)])
-def complete_current(service_id: str, store: Store = Depends(get_store)):
+def complete_current(service_id: str, db: Session = Depends(get_db), store: Store = Depends(get_store)):
     """Mark the person being served as done without calling anyone else."""
+    service = find_service(db, service_id)
     with store.lock:
-        find_service(store, service_id)
         current = store.now_serving.pop(service_id, None)
         if current is None:
             raise HTTPException(status.HTTP_409_CONFLICT, "No one is being served right now.")
-        archive(store, current.entry, "served")
+        archive(store, current.entry, "served", service.name)
         return _visit_out(store.history[0])
 
 
 @router.delete("/{service_id}/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
-def remove_entry(service_id: str, entry_id: str, store: Store = Depends(get_store)):
+def remove_entry(service_id: str, entry_id: str, db: Session = Depends(get_db), store: Store = Depends(get_store)):
+    service = find_service(db, service_id)
     with store.lock:
-        service = find_service(store, service_id)
         _, entry = _find_waiting(store, service_id, entry_id)
         store.queues[service_id].remove(entry)
         forget(store, entry.id)
-        archive(store, entry, "removed")
+        archive(store, entry, "removed", service.name)
         notify_removed(store, service, entry)
         refresh_positions(store, service)  
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{service_id}/entries/{entry_id}/move", response_model=QueueOut, dependencies=[Depends(require_admin)])
-def move_entry(service_id: str, entry_id: str, body: MoveEntryRequest, store: Store = Depends(get_store)):
+def move_entry(service_id: str, entry_id: str, body: MoveEntryRequest, db: Session = Depends(get_db), store: Store = Depends(get_store)):
     """Manual override: swap someone with the person directly ahead of or behind them."""
+    service = find_service(db, service_id)
     with store.lock:
-        service = find_service(store, service_id)
         index, _ = _find_waiting(store, service_id, entry_id)
         queue = store.queues[service_id]
         target = index - 1 if body.direction == "up" else index + 1

@@ -21,7 +21,6 @@ def test_wait_formula_at_valid_duration_boundaries(store, service, duration, ahe
 
 def test_another_services_active_visit_does_not_increase_wait(store, service):
     other = ServiceRecord("other", "Other", "Other service", 60, "medium", True, "O")
-    store.services[other.id] = other
     entry = add_entry(store, other, "Other visitor")
     store.now_serving[other.id] = ServingRecord(entry, utc_now())
     assert wait_minutes(store, service, 2) == 20

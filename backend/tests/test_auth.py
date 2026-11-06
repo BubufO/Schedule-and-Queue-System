@@ -5,6 +5,7 @@ from datetime import timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from app.database import get_db
 from app.main import app
 from app.routers.auth import DEMO_VERIFICATION_CODE
 from app.security import hash_password, verify_password
@@ -25,8 +26,9 @@ def store():
 
 
 @pytest.fixture
-def client(store):
+def client(store, seeded_db):
     app.dependency_overrides[get_store] = lambda: store
+    app.dependency_overrides[get_db] = lambda: seeded_db
     yield TestClient(app)
     app.dependency_overrides.clear()
 

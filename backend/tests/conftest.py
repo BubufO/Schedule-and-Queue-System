@@ -1,12 +1,17 @@
-"""Every test gets its own empty store; no server or database is needed."""
+"""Every test gets its own empty store and its own in-memory database; Supabase is never used."""
 
 from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
+from app.database import Base, get_db
 from app.main import app
-from app.store import ServiceRecord, SessionRecord, Store, UserRecord, get_store, utc_now
+from app.models import Service
+from app.store import SEED_SERVICES, SessionRecord, Store, UserRecord, get_store, utc_now
 
 
 class ScenarioClient(TestClient):
@@ -35,17 +40,42 @@ def store():
 
 
 @pytest.fixture
-def service(store):
-    record = ServiceRecord("advising", "Advising", "Course advice", 10, "medium", True, "A")
-    store.services[record.id] = record
+def db():
+    """A fresh SQLite database with the same tables and constraints as Supabase."""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        yield session
+    engine.dispose()
+
+
+@pytest.fixture
+def seeded_db(db):
+    """The test database with the same 16 services that were inserted into Supabase."""
+    db.add_all(
+        Service(id=id_, name=name, description=description, duration_minutes=duration,
+                priority=priority, is_open=is_open, ticket_prefix=prefix)
+        for id_, name, description, duration, priority, is_open, prefix in SEED_SERVICES
+    )
+    db.commit()
+    return db
+
+
+@pytest.fixture
+def service(store, db):
+    record = Service(id="advising", name="Advising", description="Course advice", duration_minutes=10,
+                     priority="medium", is_open=True, ticket_prefix="A")
+    db.add(record)
+    db.commit()
     store.queues[record.id] = []
     return record
 
 
 @pytest.fixture
-def client(store):
+def client(store, db):
     previous = app.dependency_overrides.copy()
     app.dependency_overrides[get_store] = lambda: store
+    app.dependency_overrides[get_db] = lambda: db
     try:
         with ScenarioClient(store) as test_client:
             yield test_client

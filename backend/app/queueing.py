@@ -57,13 +57,12 @@ def find_user_visit(store: Store, user_id: str) -> tuple[str, QueueEntryRecord, 
     return None
 
 
-def archive(store: Store, entry: QueueEntryRecord, outcome: str) -> None:
-    service = store.services.get(entry.service_id)
+def archive(store: Store, entry: QueueEntryRecord, outcome: str, service_name: str | None = None) -> None:
     store.history.insert(
         0,
         VisitRecord(
             entry=entry,
-            service_name=service.name if service else "Deleted service",
+            service_name=service_name or "Deleted service",
             ended_at=utc_now(),
             outcome=outcome,
         ),

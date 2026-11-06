@@ -1,7 +1,9 @@
 # QueueSmart Backend
 
-FastAPI backend for authentication, services, queues, notifications, and participation history. Data is held in memory
-(no database yet) and resets to the seed data when the server restarts.
+FastAPI backend for authentication, services, queues, notifications, and participation history.
+Services and queues are stored in a Supabase Postgres database (the `services` and `queues`
+tables). Everything else, including the people waiting in each queue, is still held in memory
+and resets to the seed data when the server restarts.
 
 Run it with `uv run fastapi dev` (see `SETUP.md`). See the test commands below.
 Full request and response details are at http://localhost:8000/docs while the server is running.
@@ -69,15 +71,17 @@ owned by the teammate's existing suite; profile settings remain outside this wor
 To run only this contribution's tests, use `uv run --locked python -m pytest
 --ignore=tests/test_auth.py` (without coverage flags). Run the full command above
 for the team's aggregate coverage report. Coverage does not establish that all
-assignment modules are complete. `database.py` and `models.py` are empty
-placeholders and contain no executable statements.
+assignment modules are complete. Tests use a temporary in-memory SQLite database
+built from `app/models.py`, so they never touch Supabase.
 
 ## Layout
 
 | Path | What it does |
 | --- | --- |
 | `app/main.py` | Creates the app, enables CORS, registers routers and error handlers |
-| `app/store.py` | In-memory store and seed data |
+| `app/database.py` | Connection to the Supabase database (`DATABASE_URL`) and the per-request session |
+| `app/models.py` | Table models for `services` and `queues`, with the same constraints as the database |
+| `app/store.py` | In-memory store for accounts, sessions, waiting people, history and notifications |
 | `app/schemas.py` | Request/response models and their validation rules |
 | `app/errors.py` | Turns validation failures into clear 422 responses |
 | `app/queueing.py` | Queue ordering and bookkeeping |
@@ -87,6 +91,23 @@ placeholders and contain no executable statements.
 | `app/routers/queues.py` | Queue Management endpoints |
 | `app/notifications.py` | Notification triggers, position tracking, approaching-alert deduplication |
 | `app/routers/notifications.py` | List, mark read, and clear user notifications |
+
+## Database
+
+1. Copy `backend/.env.example` to `backend/.env`.
+2. In Supabase, open your project, click **Connect**, and copy the **Session pooler** connection
+   string. Paste it as `DATABASE_URL` and replace `[YOUR-PASSWORD]` with your database password.
+   The pooler works on any network; the direct connection needs IPv6.
+3. Start the backend and open http://localhost:8000/health/db. It should say
+   `{"database": "connected"}`.
+
+`.env` is git-ignored, so the password is never committed. Without it, or if Supabase can't be
+reached, database endpoints return 503 with a message saying what to fix.
+
+| Table | Used for |
+| --- | --- |
+| `services` | Every service. Create, update, list and delete read and write this table. |
+| `queues` | One row per service: its open/closed status and created date. Opening or closing a queue updates `queues.status` and keeps `services.is_open` matching. A new service gets a queue row, and deleting a service deletes it. |
 
 ## Authentication and roles
 
