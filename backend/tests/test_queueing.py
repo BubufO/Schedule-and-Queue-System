@@ -52,9 +52,8 @@ def test_find_visit_waiting_serving_and_missing(store, service):
 def test_archive_keeps_newest_first_and_handles_deleted_service(store, service):
     first = add_entry(store, service, "Alice")
     second = add_entry(store, service, "Bob")
-    archive(store, first, "left")
-    del store.services[service.id]
-    archive(store, second, "removed")
+    archive(store, first, "left", service.name)
+    archive(store, second, "removed")  # no name: the service was deleted
     assert [v.entry for v in store.history] == [second, first]
     assert [v.outcome for v in store.history] == ["removed", "left"]
     assert store.history[0].service_name == "Deleted service"
@@ -65,10 +64,9 @@ def test_archive_keeps_newest_first_and_handles_deleted_service(store, service):
 def test_seed_store_contains_ordered_queues_and_independent_state():
     store = Store()
     other = Store()
-    assert store.services
     assert any(store.queues.values())
     rank = {"high": 0, "medium": 1, "low": 2}
     for queue in store.queues.values():
         assert queue == sorted(queue, key=lambda entry: (rank[entry.priority], entry.joined_at))
-    store.services.clear()
-    assert other.services
+    store.queues.clear()
+    assert any(other.queues.values())

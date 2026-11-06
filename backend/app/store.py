@@ -1,8 +1,8 @@
 """In-memory data store for QueueSmart.
 
-Stands in for a real database. Everything lives in process memory, so
-restarting the server resets all accounts, sessions, services and queues back to the seed
-data below.
+Services are stored in the Supabase database (see app.models). Everything else here still lives
+in process memory, so restarting the server resets accounts, sessions, and the people waiting in
+each queue back to the seed data below.
 """
 
 from dataclasses import dataclass
@@ -12,6 +12,8 @@ from threading import Lock
 
 @dataclass
 class ServiceRecord:
+    """A service's details without a database row; used to seed queues and in unit tests."""
+
     id: str
     name: str
     description: str
@@ -106,7 +108,8 @@ SEED_USERS: list[tuple[str, str, str, str, str]] = [
 ]
 
 
-# Seed services, Same as frontend. 
+# Seed services, same as the rows inserted into the Supabase services table. Used here only for
+# the ticket letters of the people seeded into each queue below.
 SEED_SERVICES: list[tuple[str, str, str, int, str, bool, str]] = [
     ("advising", "Academic Advising", "Meet with an advisor about degree plans, course selection, and graduation checks.", 20, "high", True, "A"),
     ("financial-aid", "Financial Aid", "Questions about FAFSA, scholarships, award letters, and disbursements.", 15, "high", True, "F"),
@@ -161,8 +164,6 @@ class Store:
     def __init__(self, seed: bool = True) -> None:
         # Guards every read-modify-write so concurrent requests can't interleave.
         self.lock = Lock()
-        # dicts keep insertion order, so services list in the order they were created.
-        self.services: dict[str, ServiceRecord] = {}
         # Waiting entries per service, already in serving order (see app.queueing).
         self.queues: dict[str, list[QueueEntryRecord]] = {}
         # The person currently being served at each service, if any.
@@ -188,8 +189,9 @@ class Store:
         for id_, username, password, display_name, role in SEED_USERS:
             self.users[id_] = UserRecord(id_, username, hash_password(password), display_name, role)
 
+        services = {}
         for id_, name, description, duration, priority, is_open, prefix in SEED_SERVICES:
-            self.services[id_] = ServiceRecord(id_, name, description, duration, priority, is_open, prefix)
+            services[id_] = ServiceRecord(id_, name, description, duration, priority, is_open, prefix)
             self.queues[id_] = []
 
         from app.queueing import add_entry  # imported here to avoid a circular import
@@ -202,7 +204,7 @@ class Store:
         ]
         # Add everyone in arrival order so tickets count up the way they would have live.
         for minutes_ago, service_id, name, priority in sorted(visitors, key=lambda v: -v[0]):
-            add_entry(self, self.services[service_id], name, priority=priority,
+            add_entry(self, services[service_id], name, priority=priority,
                       joined_at=now - timedelta(minutes=minutes_ago))
 
     def next_sequence(self) -> int:
