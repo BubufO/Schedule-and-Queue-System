@@ -9,7 +9,7 @@ from app.routers import auth, notifications, profile, queues, services
 
 app = FastAPI(
     title="QueueSmart API",
-    description="Authentication, service and queue management for QueueSmart. Data is held in memory.",
+    description="Authentication, service and queue management for QueueSmart. Services and queues are stored in Supabase.",
     version="0.1.0",
 )
 

@@ -26,12 +26,17 @@ cd Schedule-and-Queue-System
 ```bash
    pip install -r requirements.txt
 ```
-4. Run the backend:
+4. Connect the database: copy `.env.example` to `.env` and set `DATABASE_URL` to the Supabase
+   connection string (Supabase > Connect > Session pooler, with your database password filled in).
+   `.env` is git-ignored, so never commit it. See `backend/README.md` for details.
+5. Run the backend:
 ```bash
    uv run fastapi dev
 ```
    The API runs at http://localhost:8000. Interactive API docs are at http://localhost:8000/docs.
-   Data is kept in memory, so restarting the server resets it to the seed data.
+   Check http://localhost:8000/health/db says `{"database": "connected"}`.
+   Services and queues are saved in the database. Everything else is kept in memory, so
+   restarting the server resets it to the seed data.
 
 ## Step 3: Setup the frontend
 
