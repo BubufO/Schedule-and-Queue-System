@@ -10,6 +10,10 @@ no real email/SMS required
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.users import all_users, save_user
+
 from app.schemas import PasswordChange, ProfileOut, ProfileUpdate
 from app.security import current_session, hash_password, require_user, verify_password
 from app.store import SessionRecord, Store, UserRecord, get_store
@@ -28,11 +32,11 @@ def get_profile(user: UserRecord = Depends(require_user)):
 
 
 @router.patch("", response_model=ProfileOut)
-def update_profile(body: ProfileUpdate, user: UserRecord = Depends(require_user), store: Store = Depends(get_store)):
+def update_profile(body: ProfileUpdate, user: UserRecord = Depends(require_user), store: Store = Depends(get_store), db: Session = Depends(get_db)):
     changes = body.model_dump(exclude_unset=True)
     with store.lock:
         # Usernames and emails stay unique, including those held by pending registrations.
-        others = [u for u in store.users.values() if u.id != user.id]
+        others = [u for u in all_users(db) if u.id != user.id]
         others += [p.user for p in store.pending_registrations.values()]
         if "username" in changes and any(u.username == changes["username"] for u in others):
             raise HTTPException(status.HTTP_409_CONFLICT, "That username is already taken.")
@@ -45,6 +49,7 @@ def update_profile(body: ProfileUpdate, user: UserRecord = Depends(require_user)
 
         for field, value in changes.items():
             setattr(user, field, value)
+        save_user(db, user)
         return _profile_out(user)
 
 
@@ -54,6 +59,7 @@ def change_password(
     user: UserRecord = Depends(require_user),
     session: SessionRecord = Depends(current_session),
     store: Store = Depends(get_store),
+    db: Session = Depends(get_db),
 ):
     """Changes the password and signs out the account's other sessions. This one stays signed in."""
     # 400 rather than 401: the caller is signed in, they just typed the wrong current password.
@@ -63,6 +69,7 @@ def change_password(
     new_hash = hash_password(body.new_password)
     with store.lock:
         user.password_hash = new_hash
+        save_user(db, user)
         for token, other in list(store.sessions.items()):
             if other.user_id == user.id and token != session.token:
                 del store.sessions[token]

@@ -19,6 +19,10 @@ from datetime import timedelta
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.users import find_user, get_user
+
 from app.store import SessionRecord, Store, UserRecord, get_store, utc_now
 
 HASH_ALGORITHM = "pbkdf2_sha256"
@@ -53,8 +57,8 @@ def verify_password(password: str, stored: str) -> bool:
 _DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
 
 
-def authenticate(store: Store, username: str, password: str) -> UserRecord | None:
-    user = store.find_user_by_username(username)
+def authenticate(db: Session, username: str, password: str) -> UserRecord | None:
+    user = find_user(db, username)
     if user is None:
         verify_password(password, _DUMMY_HASH)
         return None
@@ -92,18 +96,18 @@ def current_session(
         session = store.sessions.get(credentials.credentials)
         if session is None:
             return None
-        if session.expires_at <= utc_now() or session.user_id not in store.users:
+        if session.expires_at <= utc_now():
             del store.sessions[session.token]
             return None
         return session
 
 
 def current_user(
+    db: Session = Depends(get_db),
     session: SessionRecord | None = Depends(current_session),
-    store: Store = Depends(get_store),
 ) -> UserRecord | None:
     """The signed-in user, or None for guests. For routes that also serve guests."""
-    return store.users.get(session.user_id) if session else None
+    return get_user(db, session.user_id) if session else None
 
 
 def require_user(
