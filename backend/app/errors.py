@@ -5,13 +5,21 @@ problem field with a plain message, so the frontend can show it next to the righ
 
     {"detail": "Some fields are invalid.",
      "errors": [{"field": "name", "message": "Must be at most 100 characters."}]}
+
+Database problems (no DATABASE_URL, or Supabase unreachable) come back as 503.
 """
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
+
+from app.database import DatabaseNotConfigured
+
+logger = logging.getLogger(__name__)
 
 
 def _field_name(loc: tuple[Any, ...]) -> str:
@@ -67,5 +75,20 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     )
 
 
+async def database_not_configured_handler(request: Request, exc: DatabaseNotConfigured) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
+async def database_unreachable_handler(request: Request, exc: OperationalError) -> JSONResponse:
+    # Wrong password, wrong host, or the database is down. Details go to the server log only.
+    logger.error("Database connection failed: %s", exc)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Can't reach the database. Check DATABASE_URL in backend/.env."},
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(DatabaseNotConfigured, database_not_configured_handler)
+    app.add_exception_handler(OperationalError, database_unreachable_handler)
