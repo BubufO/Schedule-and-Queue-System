@@ -1,9 +1,9 @@
 # QueueSmart Backend
 
 FastAPI backend for authentication, services, queues, notifications, and participation history.
-Services, queues, the people in each queue (and their visit history), and accounts are stored
-in a Supabase Postgres database. Sessions and notifications are still held in memory and reset
-when the server restarts.
+Services, queues, the people in each queue (and their visit history), accounts, and
+notifications are stored in a Supabase Postgres database. Sessions are still held in memory and
+reset when the server restarts.
 
 Run it with `uv run fastapi dev` (see `SETUP.md`). See the test commands below.
 Full request and response details are at http://localhost:8000/docs while the server is running.
@@ -110,6 +110,7 @@ reached, database endpoints return 503 with a message saying what to fix.
 | `services` | Every service. Create, update, list and delete read and write this table. |
 | `queues` | One row per service: its open/closed status and created date. Opening or closing a queue updates `queues.status` and keeps `services.is_open` matching. A new service gets a queue row, and deleting a service deletes it. |
 | `queue_entries` | One row per visit. A visit is `waiting` (with a `position`, 1 = next), then `serving`, then ends as `served`, `left`, `removed` or `cancelled` with `ended_at` set; finished rows are the visit history. Each row keeps its service's id and name, so deleting a service cancels its visits but keeps them in history (`queue_id` becomes NULL). Partial unique indexes allow one active visit per user and one person being served per queue. |
+| `notifications` | Each user's inbox, newest first by `created_at`. Joining, leaving, being removed or served, and position changes add rows with `status` `sent`; mark-read sets `status` to `viewed` and fills `viewed_at`, and clearing deletes the user's rows. Only users with an account get rows; deleting an account deletes its notifications, and deleting a service sets their `service_id` to NULL. |
 
 `queue_entries` is created from the model with `python scripts/create_queue_entries.py`
 (run once; safe to repeat). Add `--seed-visitors` to insert the demo visitors into an empty table.

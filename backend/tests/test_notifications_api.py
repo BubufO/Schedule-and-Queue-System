@@ -1,6 +1,9 @@
 """Notification inbox API and end-to-end queue notification triggers."""
 
 import pytest
+from sqlalchemy import select
+
+from app.models import Notification
 
 
 def join(client, name, **fields):
@@ -101,14 +104,14 @@ def test_rejected_requests_do_not_emit_notifications_and_rejoin_warns_again(clie
     assert [n["type"] for n in inbox(client)] == ["approaching", "joined", "left", "approaching", "joined"]
 
 
-def test_guest_served_removed_and_leaving_never_creates_personal_notifications(client, service, store):
+def test_guest_served_removed_and_leaving_never_creates_personal_notifications(client, service, db):
     first = join(client, "Guest")
     client.post("/queues/advising/leave", json={"entryId": first["id"]})
     second = join(client, "Guest")
     client.delete(f"/queues/advising/entries/{second['id']}")
     join(client, "Guest")
     client.post("/queues/advising/serve-next")
-    assert store.notifications == []
+    assert db.scalars(select(Notification)).all() == []
 
 
 @pytest.mark.parametrize("method", ["get", "delete"])
@@ -121,4 +124,5 @@ def test_inbox_validates_user_identifier(client, method, params):
 
 def test_unknown_notification_and_invalid_unread_filter(client):
     assert client.post("/notifications/missing/read").status_code == 404
+    assert client.post("/notifications/notif-abc/read").status_code == 404
     assert client.get("/notifications", params={"userId": "alice", "unreadOnly": "invalid"}, headers=client.headers_for("alice")).status_code == 422
