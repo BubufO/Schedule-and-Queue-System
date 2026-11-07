@@ -176,7 +176,9 @@ class QueueEntry(Base):
     service_id: Mapped[str] = mapped_column(String(64), nullable=False)
     service_name: Mapped[str] = mapped_column(String(100), nullable=False)
     # NULL for guests who joined with a link.
-    user_id: Mapped[str | None] = mapped_column(String(64))
+    user_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("user_credentials.id", ondelete="SET NULL")
+    )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     ticket: Mapped[str] = mapped_column(String(10), nullable=False)
     priority: Mapped[str] = mapped_column(String(10), nullable=False, server_default="medium")
