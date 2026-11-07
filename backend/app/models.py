@@ -155,6 +155,62 @@ class UTCDateTime(TypeDecorator):
         return value
 
 
+NOTIFICATION_TYPES = ("joined", "left", "removed", "update", "approaching", "turn", "service")
+
+
+class Notification(Base):
+    """One message in a user's inbox. Mirrors public.notifications in Supabase.
+
+    status is "sent" until the user marks it read, then "viewed" with viewed_at set. Deleting the
+    account deletes its notifications; deleting the service keeps them with service_id NULL.
+    """
+
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column("notification_id", String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("user_credentials.id", ondelete="CASCADE"), nullable=False
+    )
+    service_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("services.id", ondelete="SET NULL"))
+    type: Mapped[str] = mapped_column(String(12), nullable=False)
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    message: Mapped[str] = mapped_column(String(500), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="sent", server_default="sent")
+    timestamp: Mapped[datetime] = mapped_column("created_at", UTCDateTime, nullable=False, server_default=func.now())
+    viewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    old_position: Mapped[int | None] = mapped_column(Integer)
+    new_position: Mapped[int | None] = mapped_column(Integer)
+
+    __table_args__ = (
+        CheckConstraint("LENGTH(TRIM(notification_id)) > 0", name="chk_notifications_id_not_blank"),
+        CheckConstraint("LENGTH(TRIM(title)) > 0", name="chk_notifications_title_not_blank"),
+        CheckConstraint("LENGTH(TRIM(message)) > 0", name="chk_notifications_message_not_blank"),
+        CheckConstraint(f"type IN {NOTIFICATION_TYPES}", name="chk_notifications_type"),
+        CheckConstraint("status IN ('sent', 'viewed')", name="chk_notifications_status"),
+        CheckConstraint("(status = 'viewed') = (viewed_at IS NOT NULL)", name="chk_notifications_viewed_at"),
+        CheckConstraint(
+            "(old_position IS NULL OR old_position >= 1) AND (new_position IS NULL OR new_position >= 1)",
+            name="chk_notifications_positions",
+        ),
+    )
+
+    @property
+    def read(self) -> bool:
+        """The API's name for status == "viewed"."""
+        return self.status == "viewed"
+
+    def mark_viewed(self, when: datetime) -> None:
+        if self.status != "viewed":
+            self.status = "viewed"
+            self.viewed_at = when
+
+    def __repr__(self) -> str:
+        return f"Notification(id={self.id!r}, user_id={self.user_id!r}, type={self.type!r})"
+
+
+Index("ix_notifications_user", Notification.user_id, Notification.timestamp.desc())
+
+
 # Ticket numbers and entry ids ("entry-101", "A101") come from this Postgres sequence.
 queue_entry_seq = Sequence("queue_entry_seq", start=101, metadata=Base.metadata)
 
