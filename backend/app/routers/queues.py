@@ -89,12 +89,13 @@ def _find_waiting(state: QueueState, entry_id: str) -> int:
 
 
 def _commit_and_notify(db: Session, store: Store, service: Service, state_after: QueueState, notify=None) -> None:
-    """Save the change, then send notifications, so a failed save never notifies anyone."""
+    """Save the change, then save its notifications, so a failed change never notifies anyone."""
     db.commit()
     with store.lock:
         if notify:
             notify()
-        refresh_positions(store, service, state_after.waiting)
+        refresh_positions(db, store, service, state_after.waiting)
+    db.commit()
 
 
 # ---- viewing --------------------------------------------------------------------------
@@ -152,8 +153,9 @@ def join_queue(
         raise HTTPException(status.HTTP_409_CONFLICT, ACTIVE_VISIT)
     index = entry.position - 1
     with store.lock:
-        notify_joined(store, service, entry, wait_minutes(service, index, state.serving is not None))
-        refresh_positions(store, service, state.waiting)
+        notify_joined(db, service, entry, wait_minutes(service, index, state.serving is not None))
+        refresh_positions(db, store, service, state.waiting)
+    db.commit()
     return _waiting_out(service, state, index, entry)
 
 
@@ -184,7 +186,7 @@ def leave_queue(
 
     def notify():
         forget(store, entry.id)
-        notify_left(store, service, entry)
+        notify_left(db, service, entry)
 
     _commit_and_notify(db, store, service, queue_state(db, service), notify)
     return entry
@@ -207,7 +209,7 @@ def serve_next(service_id: str, db: Session = Depends(get_db), store: Store = De
 
     def notify():
         forget(store, entry.id)
-        notify_now_serving(store, service, entry)
+        notify_now_serving(db, service, entry)
 
     _commit_and_notify(db, store, service, queue_state(db, service), notify)
     return _serving_out(entry)
@@ -234,7 +236,7 @@ def remove_entry(service_id: str, entry_id: str, db: Session = Depends(get_db), 
 
     def notify():
         forget(store, entry.id)
-        notify_removed(store, service, entry)
+        notify_removed(db, service, entry)
 
     _commit_and_notify(db, store, service, queue_state(db, service), notify)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
