@@ -1,8 +1,8 @@
 """In-memory data store for QueueSmart.
 
-Services, accounts and queue entries are stored in the Supabase database (see app.models).
-Sessions, pending registrations and notifications still live in process memory, so restarting
-the server resets them.
+Services, accounts, queue entries and notifications are stored in the Supabase database (see
+app.models). Sessions, pending registrations and notification position tracking still live in
+process memory, so restarting the server resets them.
 """
 
 from dataclasses import dataclass
@@ -21,20 +21,6 @@ class ServiceRecord:
     priority: str
     is_open: bool
     ticket_prefix: str
-
-
-@dataclass
-class NotificationRecord:
-    id: str
-    user_id: str
-    type: str  # joined | left | removed | update | approaching | turn | service
-    title: str
-    message: str
-    timestamp: datetime
-    service_id: str | None = None
-    old_position: int | None = None
-    new_position: int | None = None
-    read: bool = False
 
 
 @dataclass
@@ -136,16 +122,13 @@ class Store:
     def __init__(self, seed: bool = True) -> None:
         # Guards every read-modify-write so concurrent requests can't interleave.
         self.lock = Lock()
-        # Notifications for each user, newest first
-        self.notifications: list[NotificationRecord] = []   # newest first
+        # Notification tracking; the notifications themselves are in the database.
         self.last_position: dict[str, int] = {}              # entry id -> last position we told them about
         self.approaching_notified: set[str] = set()          # entry ids already warned they're close
         # Accounts by id, signed-in sessions by token, and registrations awaiting a code.
         self.users: dict[str, UserRecord] = {}
         self.sessions: dict[str, SessionRecord] = {}
         self.pending_registrations: dict[str, PendingRegistrationRecord] = {}
-        # Counter for notification ids.
-        self.sequence = 100
         if seed:
             self._seed()
 
@@ -154,10 +137,6 @@ class Store:
 
         for id_, username, password, display_name, role in SEED_USERS:
             self.users[id_] = UserRecord(id_, username, hash_password(password), display_name, role)
-
-    def next_sequence(self) -> int:
-        self.sequence += 1
-        return self.sequence
 
     def find_user_by_username(self, username: str) -> UserRecord | None:
         username = username.lower()
