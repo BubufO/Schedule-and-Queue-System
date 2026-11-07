@@ -2,7 +2,8 @@
 
 import logging
 
-from app.store import NotificationRecord, QueueEntryRecord, ServiceRecord, Store, utc_now
+from app.models import QueueEntry, Service
+from app.store import NotificationRecord, Store, utc_now
 
 logger = logging.getLogger("queuesmart.notifications")
 
@@ -49,28 +50,28 @@ def notify(
     return record
 
 
-def notify_joined(store: Store, service: ServiceRecord, entry: QueueEntryRecord, wait: int) -> None:
+def notify_joined(store: Store, service: Service, entry: QueueEntry, wait: int) -> None:
     if entry.user_id:
         notify(store, entry.user_id, "joined", "Queue Joined",
                f"You successfully joined {service.name}. Estimated wait: {wait} minutes.",
                service_id=service.id)
 
 
-def notify_left(store: Store, service: ServiceRecord, entry: QueueEntryRecord) -> None:
+def notify_left(store: Store, service: Service, entry: QueueEntry) -> None:
     if entry.user_id:
         notify(store, entry.user_id, "left", "Left Queue",
                f"You left the queue for {service.name}.",
                service_id=service.id)
 
 
-def notify_removed(store: Store, service: ServiceRecord, entry: QueueEntryRecord) -> None:
+def notify_removed(store: Store, service: Service, entry: QueueEntry) -> None:
     if entry.user_id:
         notify(store, entry.user_id, "removed", "Removed from Queue",
                f"Staff removed you from the queue for {service.name}.",
                service_id=service.id)
 
 
-def notify_now_serving(store: Store, service: ServiceRecord, entry: QueueEntryRecord) -> None:
+def notify_now_serving(store: Store, service: Service, entry: QueueEntry) -> None:
     if entry.user_id:
         notify(store, entry.user_id, "turn", "It's your turn!",
                f"Your turn at {service.name}. Please report to staff.", service_id=service.id)
@@ -82,9 +83,9 @@ def forget(store: Store, entry_id: str) -> None:
     store.approaching_notified.discard(entry_id)
 
 
-def refresh_positions(store: Store, service: ServiceRecord) -> None:
-    """Call after any change to a service's waiting list."""
-    for index, entry in enumerate(store.queues.get(service.id, [])):
+def refresh_positions(store: Store, service: Service, waiting: list[QueueEntry]) -> None:
+    """Call after any change to a service's waiting list, passing the list in serving order."""
+    for index, entry in enumerate(waiting):
         if entry.user_id is None:
             continue
         position = index + 1

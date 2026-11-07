@@ -1,18 +1,18 @@
 """In-memory data store for QueueSmart.
 
-Services are stored in the Supabase database (see app.models). Everything else here still lives
-in process memory, so restarting the server resets accounts, sessions, and the people waiting in
-each queue back to the seed data below.
+Services, accounts and queue entries are stored in the Supabase database (see app.models).
+Sessions, pending registrations and notifications still live in process memory, so restarting
+the server resets them.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from threading import Lock
 
 
 @dataclass
 class ServiceRecord:
-    """A service's details without a database row; used to seed queues and in unit tests."""
+    """A service's details without a database row; used in unit tests."""
 
     id: str
     name: str
@@ -21,34 +21,6 @@ class ServiceRecord:
     priority: str
     is_open: bool
     ticket_prefix: str
-
-
-@dataclass
-class QueueEntryRecord:
-    id: str
-    service_id: str
-    name: str
-    ticket: str
-    joined_at: datetime
-    priority: str = "medium"
-    # Set for signed-in users; None for guests who joined with a one-time link.
-    user_id: str | None = None
-
-
-@dataclass
-class ServingRecord:
-    entry: QueueEntryRecord
-    started_at: datetime
-
-
-@dataclass
-class VisitRecord:
-    """A finished visit, kept so users can see their history."""
-
-    entry: QueueEntryRecord
-    service_name: str
-    ended_at: datetime
-    outcome: str  # served | left | removed | cancelled
 
 
 @dataclass
@@ -108,8 +80,7 @@ SEED_USERS: list[tuple[str, str, str, str, str]] = [
 ]
 
 
-# Seed services, same as the rows inserted into the Supabase services table. Used here only for
-# the ticket letters of the people seeded into each queue below.
+# Seed services, same as the rows inserted into the Supabase services table.
 SEED_SERVICES: list[tuple[str, str, str, int, str, bool, str]] = [
     ("advising", "Academic Advising", "Meet with an advisor about degree plans, course selection, and graduation checks.", 20, "high", True, "A"),
     ("financial-aid", "Financial Aid", "Questions about FAFSA, scholarships, award letters, and disbursements.", 15, "high", True, "F"),
@@ -130,8 +101,9 @@ SEED_SERVICES: list[tuple[str, str, str, int, str, bool, str]] = [
 ]
 
 
-# Seed queues: (name, minutes ago they joined, priority). Two high-priority visitors show
-# priority ordering: they sit ahead of earlier arrivals with normal priority.
+# Demo visitors: (name, minutes ago they joined, priority). Two high-priority visitors show
+# priority ordering: they sit ahead of earlier arrivals with normal priority. Inserted into
+# queue_entries by `python scripts/create_queue_entries.py --seed-visitors`.
 SEED_QUEUES: dict[str, list[tuple[str, int, str]]] = {
     "advising": [("Maria Gonzalez", 43, "medium"), ("James Carter", 38, "medium"), ("Priya Patel", 30, "medium"),
                  ("Daniel Kim", 27, "medium"), ("Aisha Johnson", 19, "high"), ("Luis Ramirez", 14, "medium")],
@@ -164,12 +136,6 @@ class Store:
     def __init__(self, seed: bool = True) -> None:
         # Guards every read-modify-write so concurrent requests can't interleave.
         self.lock = Lock()
-        # Waiting entries per service, already in serving order (see app.queueing).
-        self.queues: dict[str, list[QueueEntryRecord]] = {}
-        # The person currently being served at each service, if any.
-        self.now_serving: dict[str, ServingRecord] = {}
-        # Finished visits, newest first.
-        self.history: list[VisitRecord] = []
         # Notifications for each user, newest first
         self.notifications: list[NotificationRecord] = []   # newest first
         self.last_position: dict[str, int] = {}              # entry id -> last position we told them about
@@ -178,7 +144,7 @@ class Store:
         self.users: dict[str, UserRecord] = {}
         self.sessions: dict[str, SessionRecord] = {}
         self.pending_registrations: dict[str, PendingRegistrationRecord] = {}
-        # Shared counter for entry ids and ticket numbers.
+        # Counter for notification ids.
         self.sequence = 100
         if seed:
             self._seed()
@@ -188,24 +154,6 @@ class Store:
 
         for id_, username, password, display_name, role in SEED_USERS:
             self.users[id_] = UserRecord(id_, username, hash_password(password), display_name, role)
-
-        services = {}
-        for id_, name, description, duration, priority, is_open, prefix in SEED_SERVICES:
-            services[id_] = ServiceRecord(id_, name, description, duration, priority, is_open, prefix)
-            self.queues[id_] = []
-
-        from app.queueing import add_entry  # imported here to avoid a circular import
-
-        now = utc_now()
-        visitors = [
-            (minutes_ago, service_id, name, priority)
-            for service_id, people in SEED_QUEUES.items()
-            for name, minutes_ago, priority in people
-        ]
-        # Add everyone in arrival order so tickets count up the way they would have live.
-        for minutes_ago, service_id, name, priority in sorted(visitors, key=lambda v: -v[0]):
-            add_entry(self, services[service_id], name, priority=priority,
-                      joined_at=now - timedelta(minutes=minutes_ago))
 
     def next_sequence(self) -> int:
         self.sequence += 1

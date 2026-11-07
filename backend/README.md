@@ -1,9 +1,9 @@
 # QueueSmart Backend
 
 FastAPI backend for authentication, services, queues, notifications, and participation history.
-Services and queues are stored in a Supabase Postgres database (the `services` and `queues`
-tables). Everything else, including the people waiting in each queue, is still held in memory
-and resets to the seed data when the server restarts.
+Services, queues, the people in each queue (and their visit history), and accounts are stored
+in a Supabase Postgres database. Sessions and notifications are still held in memory and reset
+when the server restarts.
 
 Run it with `uv run fastapi dev` (see `SETUP.md`). See the test commands below.
 Full request and response details are at http://localhost:8000/docs while the server is running.
@@ -80,11 +80,12 @@ built from `app/models.py`, so they never touch Supabase.
 | --- | --- |
 | `app/main.py` | Creates the app, enables CORS, registers routers and error handlers |
 | `app/database.py` | Connection to the Supabase database (`DATABASE_URL`) and the per-request session |
-| `app/models.py` | Table models for `services` and `queues`, with the same constraints as the database |
-| `app/store.py` | In-memory store for accounts, sessions, waiting people, history and notifications |
+| `app/models.py` | Table models (`services`, `queues`, `queue_entries`, users), with the same constraints as the database |
+| `app/store.py` | In-memory store for sessions, pending registrations and notifications |
 | `app/schemas.py` | Request/response models and their validation rules |
 | `app/errors.py` | Turns validation failures into clear 422 responses |
-| `app/queueing.py` | Queue ordering and bookkeeping |
+| `app/queueing.py` | Queue ordering and bookkeeping on the `queue_entries` table |
+| `scripts/create_queue_entries.py` | Creates `queue_entries` in Supabase; `--seed-visitors` adds demo visitors |
 | `app/security.py` | Password hashing, session tokens, and the `require_user` / `require_admin` checks |
 | `app/routers/auth.py` | Authentication endpoints |
 | `app/routers/services.py` | Service Management endpoints |
@@ -108,6 +109,10 @@ reached, database endpoints return 503 with a message saying what to fix.
 | --- | --- |
 | `services` | Every service. Create, update, list and delete read and write this table. |
 | `queues` | One row per service: its open/closed status and created date. Opening or closing a queue updates `queues.status` and keeps `services.is_open` matching. A new service gets a queue row, and deleting a service deletes it. |
+| `queue_entries` | One row per visit. A visit is `waiting` (with a `position`, 1 = next), then `serving`, then ends as `served`, `left`, `removed` or `cancelled` with `ended_at` set; finished rows are the visit history. Each row keeps its service's id and name, so deleting a service cancels its visits but keeps them in history (`queue_id` becomes NULL). Partial unique indexes allow one active visit per user and one person being served per queue. |
+
+`queue_entries` is created from the model with `python scripts/create_queue_entries.py`
+(run once; safe to repeat). Add `--seed-visitors` to insert the demo visitors into an empty table.
 
 ## Authentication and roles
 
