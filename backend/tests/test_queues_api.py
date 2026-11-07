@@ -1,6 +1,9 @@
 """Queue API workflows use fresh stores and assert observable behavior."""
 
 import pytest
+from sqlalchemy import func, select
+
+from app.models import QueueEntry
 
 
 def join(client, name="Alice", **fields):
@@ -27,10 +30,10 @@ def test_join_order_positions_waits_and_list(client, service):
     assert client.get("/queues").json() == [queue]
 
 
-def test_closed_service_rejects_join_without_mutation(client, service, store):
+def test_closed_service_rejects_join_without_mutation(client, service, db):
     service.is_open = False
     assert client.post("/queues/advising/join", json={"name": "Alice"}).status_code == 409
-    assert store.queues[service.id] == []
+    assert db.scalar(select(func.count()).select_from(QueueEntry)) == 0
 
 
 @pytest.mark.parametrize("being_served", [False, True])

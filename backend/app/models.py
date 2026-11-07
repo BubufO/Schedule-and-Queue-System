@@ -4,7 +4,7 @@ These mirror the tables created in Supabase, constraints included, so the databa
 same rules as the API: required fields, length limits, types, and unique service names.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -14,10 +14,13 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    Sequence,
     String,
     false,
     func,
+    text,
 )
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -138,3 +141,76 @@ class UserProfile(Base):
         CheckConstraint("phone IS NULL OR length(phone) BETWEEN 10 AND 16", name="chk_profile_phone"),
         CheckConstraint("NOT notify_sms OR phone IS NOT NULL", name="chk_sms_phone"),
     )
+
+
+class UTCDateTime(TypeDecorator):
+    """timestamptz that always reads back as UTC-aware, even on SQLite (which drops the zone)."""
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+
+
+# Ticket numbers and entry ids ("entry-101", "A101") come from this Postgres sequence.
+queue_entry_seq = Sequence("queue_entry_seq", start=101, metadata=Base.metadata)
+
+ACTIVE_STATUSES = ("waiting", "serving")
+FINISHED_STATUSES = ("served", "left", "removed", "cancelled")
+
+
+class QueueEntry(Base):
+    """One visit to a service's queue: waiting (with a position), then being served, then finished.
+
+    Finished rows are the visit history. They keep the service's id and name, so history
+    survives the service being deleted (queue_id is then set to NULL).
+    """
+
+    __tablename__ = "queue_entries"
+
+    id: Mapped[str] = mapped_column("entry_id", String(64), primary_key=True)
+    queue_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("queues.queue_id", ondelete="SET NULL"))
+    service_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    service_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # NULL for guests who joined with a link.
+    user_id: Mapped[str | None] = mapped_column(String(64))
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    ticket: Mapped[str] = mapped_column(String(10), nullable=False)
+    priority: Mapped[str] = mapped_column(String(10), nullable=False, server_default="medium")
+    status: Mapped[str] = mapped_column(String(10), nullable=False, server_default="waiting")
+    # 1 is next in line. Only set while waiting.
+    position: Mapped[int | None] = mapped_column(Integer)
+    joined_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    ended_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+    __table_args__ = (
+        CheckConstraint("LENGTH(TRIM(name)) > 0", name="chk_queue_entries_name_not_blank"),
+        CheckConstraint("priority IN ('low', 'medium', 'high')", name="chk_queue_entries_priority"),
+        CheckConstraint(
+            "status IN ('waiting', 'serving', 'served', 'left', 'removed', 'cancelled')",
+            name="chk_queue_entries_status",
+        ),
+        CheckConstraint("(status = 'waiting') = (position IS NOT NULL)", name="chk_queue_entries_position"),
+        CheckConstraint("(status IN ('waiting', 'serving')) = (ended_at IS NULL)", name="chk_queue_entries_ended"),
+        Index("ix_queue_entries_queue_status_pos", "queue_id", "status", "position"),
+        Index("ix_queue_entries_user", "user_id", "ended_at"),
+        # A user holds at most one active visit; a queue serves one person at a time.
+        Index("uq_queue_entries_user_active", "user_id", unique=True,
+              postgresql_where=text("status IN ('waiting', 'serving')"),
+              sqlite_where=text("status IN ('waiting', 'serving')")),
+        Index("uq_queue_entries_queue_serving", "queue_id", unique=True,
+              postgresql_where=text("status = 'serving'"),
+              sqlite_where=text("status = 'serving'")),
+    )
+
+    @property
+    def outcome(self) -> str:
+        """How a finished visit ended (the API's name for status)."""
+        return self.status
+
+    def __repr__(self) -> str:
+        return f"QueueEntry(id={self.id!r}, service_id={self.service_id!r}, status={self.status!r})"

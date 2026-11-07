@@ -2,40 +2,43 @@
 
 import pytest
 
-from app.queueing import add_entry, join_wait_minutes, wait_minutes
-from app.store import ServiceRecord, ServingRecord, utc_now
+from app.models import Service
+from app.queueing import QueueState, add_entry, join_wait_minutes, queue_state, start_serving, wait_minutes
 
 
 @pytest.mark.parametrize("duration,ahead,active,expected", [
     (1, 0, False, 0), (1, 1, False, 1), (480, 2, False, 960),
     (15, 0, True, 15), (15, 3, True, 60), (10, 100, False, 1000),
 ])
-def test_wait_formula_at_valid_duration_boundaries(store, service, duration, ahead, active, expected):
+def test_wait_formula_at_valid_duration_boundaries(db, service, duration, ahead, active, expected):
     service.duration_minutes = duration
     if active:
-        entry = add_entry(store, service, "Being served")
-        store.queues[service.id].remove(entry)
-        store.now_serving[service.id] = ServingRecord(entry, utc_now())
-    assert wait_minutes(store, service, ahead) == expected
+        start_serving(db, add_entry(db, service, "Being served"))
+    someone_serving = queue_state(db, service).serving is not None
+    assert someone_serving is active
+    assert wait_minutes(service, ahead, someone_serving) == expected
 
 
-def test_another_services_active_visit_does_not_increase_wait(store, service):
-    other = ServiceRecord("other", "Other", "Other service", 60, "medium", True, "O")
-    entry = add_entry(store, other, "Other visitor")
-    store.now_serving[other.id] = ServingRecord(entry, utc_now())
-    assert wait_minutes(store, service, 2) == 20
+def test_another_services_active_visit_does_not_increase_wait(db, service):
+    other = Service(id="other", name="Other", description="Other service", duration_minutes=60,
+                    priority="medium", is_open=True, ticket_prefix="O")
+    db.add(other)
+    db.flush()
+    start_serving(db, add_entry(db, other, "Other visitor"))
+    state = queue_state(db, service)
+    assert state.serving is None
+    assert wait_minutes(service, 2, state.serving is not None) == 20
 
 
 @pytest.mark.parametrize("priority,expected", [("high", 10), ("medium", 30), ("low", 40)])
-def test_new_arrival_estimate_uses_priority_position(store, service, priority, expected):
+def test_new_arrival_estimate_uses_priority_position(db, service, priority, expected):
     for existing in ["high", "medium", "medium", "low"]:
-        add_entry(store, service, existing, priority=existing)
-    assert join_wait_minutes(store, service, priority) == expected
+        add_entry(db, service, existing, priority=existing)
+    assert join_wait_minutes(queue_state(db, service), service, priority) == expected
 
 
-def test_empty_service_without_queue_has_zero_join_wait(store, service):
-    del store.queues[service.id]
-    assert join_wait_minutes(store, service) == 0
+def test_empty_service_without_queue_has_zero_join_wait(service):
+    assert join_wait_minutes(QueueState(), service) == 0
 
 
 def join(client, name, **fields):

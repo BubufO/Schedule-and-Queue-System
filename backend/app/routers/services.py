@@ -13,10 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Service
-from app.queueing import archive
+from app.queueing import cancel_all
 from app.schemas import ServiceCreate, ServiceOut, ServiceUpdate
 from app.security import require_admin
-from app.store import Store, get_store
 
 router = APIRouter(prefix="/services", tags=["services"])
 
@@ -107,14 +106,11 @@ def update_service(service_id: str, body: ServiceUpdate, db: Session = Depends(g
 
 
 @router.delete("/{service_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
-def delete_service(service_id: str, db: Session = Depends(get_db), store: Store = Depends(get_store)):
+def delete_service(service_id: str, db: Session = Depends(get_db)):
     service = find_service(db, service_id)
-    name = service.name
+    # Anyone still waiting or being served has their visit cancelled. The visits stay in
+    # queue_entries as history; deleting the queue row only clears their queue_id.
+    cancel_all(db, service)
     db.delete(service)
     db.commit()
-    with store.lock:
-        # Anyone still waiting or being served has their visit cancelled.
-        serving = store.now_serving.pop(service_id, None)
-        for entry in ([serving.entry] if serving else []) + store.queues.pop(service_id, []):
-            archive(store, entry, "cancelled", name)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

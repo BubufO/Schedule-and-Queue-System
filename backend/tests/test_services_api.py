@@ -1,6 +1,9 @@
 """Service endpoints: state changes, conflicts, and client-facing errors."""
 
 import pytest
+from sqlalchemy import select
+
+from app.models import QueueEntry
 
 
 BODY = {"name": "IT Help", "description": "Technical support", "durationMinutes": 15}
@@ -98,14 +101,15 @@ def test_invalid_json_and_non_object_bodies(client):
     assert response.json()["errors"][0]["message"] == "A request body is required."
 
 
-def test_delete_cancels_waiting_and_serving_visits(client, service, store):
+def test_delete_cancels_waiting_and_serving_visits(client, service, db):
     for user in ["alice", "bob"]:
         assert client.post("/queues/advising/join", json={"name": user, "userId": user}, headers=client.headers_for(user)).status_code == 201
     client.post("/queues/advising/serve-next")
     assert client.delete("/services/advising").status_code == 204
     assert client.get("/services/advising").status_code == 404
-    assert "advising" not in store.queues
-    assert "advising" not in store.now_serving
+    statuses = db.execute(select(QueueEntry.status, QueueEntry.ended_at)).all()
+    assert [status for status, _ in statuses] == ["cancelled", "cancelled"]
+    assert all(ended_at is not None for _, ended_at in statuses)
     for user in ["alice", "bob"]:
         visits = client.get("/queues/history", params={"userId": user}, headers=client.headers_for(user)).json()
         assert len(visits) == 1

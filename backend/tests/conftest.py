@@ -72,12 +72,11 @@ def seeded_db(db):
 
 
 @pytest.fixture
-def service(store, db):
+def service(db):
     record = Service(id="advising", name="Advising", description="Course advice", duration_minutes=10,
                      priority="medium", is_open=True, ticket_prefix="A")
     db.add(record)
     db.commit()
-    store.queues[record.id] = []
     return record
 
 
